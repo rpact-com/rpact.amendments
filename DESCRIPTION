@@ -1,0 +1,37 @@
+Package: rpact.amendments
+Title: rpact Amendments
+Version: 0.1.0.9001
+Date: 2023-02-23
+Authors@R: c(
+    person(
+    	given = "Friedrich", 
+    	family = "Pahlke", 
+    	email = "friedrich.pahlke@rpact.com",
+    	comment = c(ORCID = "0000-0003-2105-2582"), 
+    	role = c("aut", "cre"))
+    )
+Description: Compare new C++ implementations with original R-based implementations in rpact.
+License: LGPL-3
+Encoding: UTF-8
+LazyData: true
+URL: https://www.rpact.com, https://github.com/rpact-com/rpact.amendments
+BugReports: https://github.com/rpact-com/rpact.amendments/issues
+Language: en-US
+Depends: 
+	R (>= 3.6.0)
+Imports:
+	methods,
+	stats,
+	utils,
+	graphics,
+	tools,
+	rlang
+Suggests: 
+	testthat (>= 3.0.0),
+	knitr (>= 1.19), 
+	rmarkdown (>= 1.10)
+VignetteBuilder: knitr, rmarkdown
+RoxygenNote: 7.2.3
+Roxygen: list(markdown = TRUE)
+Config/testthat/edition: 3
+Config/testthat/parallel: true
