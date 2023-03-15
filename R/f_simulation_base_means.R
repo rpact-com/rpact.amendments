@@ -46,14 +46,14 @@
         if (normalApproximation) {
             value <- overallTestStatistic
         } else {
-            value <- .getQNorm(stats::pt(overallTestStatistic, sum(sampleSizesPerStage) - groups))
+            value <- rpact:::.getQNorm(stats::pt(overallTestStatistic, sum(sampleSizesPerStage) - groups))
         }
     } else if (designNumber == 2L) {
         if (stage == 1) {
             if (normalApproximation) {
                 value <- testStatisticsPerStage[1]
             } else {
-                value <- .getQNorm(stats::pt(testStatisticsPerStage[1], sampleSizesPerStage[1] - groups))
+                value <- rpact:::.getQNorm(stats::pt(testStatisticsPerStage[1], sampleSizesPerStage[1] - groups))
             }
         } else {
             if (normalApproximation) {
@@ -62,9 +62,9 @@
                     testStatisticsPerStage[2:stage]) / sqrt(informationRates[stage])
             } else {
                 value <- (sqrt(informationRates[1]) *
-                    .getQNorm(stats::pt(testStatisticsPerStage[1], sampleSizesPerStage[1] - groups)) +
+                    rpact:::.getQNorm(stats::pt(testStatisticsPerStage[1], sampleSizesPerStage[1] - groups)) +
                     sqrt(informationRates[2:stage] - informationRates[1:(stage - 1)]) %*%
-                    .getQNorm(stats::pt(
+                    rpact:::.getQNorm(stats::pt(
                         testStatisticsPerStage[2:stage],
                         sampleSizesPerStage[2:stage] - groups
                     ))) / sqrt(informationRates[stage])
@@ -129,7 +129,7 @@
         mult <- 1 + 1 / allocationRatioPlanned[stage] + thetaH0^2 * (1 + allocationRatioPlanned[stage])
     }
 
-    stageSubjects <- (max(0, conditionalCriticalValue + .getQNorm(conditionalPower)))^2 * mult /
+    stageSubjects <- (max(0, conditionalCriticalValue + rpact:::.getQNorm(conditionalPower)))^2 * mult /
         (max(1e-12, thetaStandardized))^2
 
     stageSubjects <- min(
@@ -187,7 +187,7 @@
 
         # conditional critical value to reject the null hypotheses at the next stage of the trial
         if (designNumber == 3L) {
-            conditionalCriticalValue <- .getOneMinusQNorm((criticalValues[k] /
+            conditionalCriticalValue <- rpact:::.getOneMinusQNorm((criticalValues[k] /
                 testStatistic$value)^(1 / sqrt((informationRates[k] -
                 informationRates[k - 1]) / informationRates[1])))
         } else {
@@ -214,7 +214,7 @@
 
         if (is.null(stageSubjects) || length(stageSubjects) != 1 || !is.numeric(stageSubjects) || is.na(stageSubjects)) {
             stop(
-                C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
+                rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
                 "'calcSubjectsFunction' returned an illegal or undefined result (", stageSubjects, "); ",
                 "the output must be a single numeric value"
             )
@@ -510,30 +510,12 @@
 #' Returns the simulated power, stopping probabilities, conditional power, and expected sample size
 #' for testing means in a one or two treatment groups testing situation.
 #'
-#' @inheritParams param_design_with_default
-#' @inheritParams param_groups
 #' @param normalApproximation The type of computation of the p-values. Default is \code{TRUE},
 #'        i.e., normally distributed test statistics are generated.
 #'        If \code{FALSE}, the t test is used for calculating the p-values,
 #'        i.e., t distributed test statistics are generated.
 #' @param meanRatio If \code{TRUE}, the design characteristics for
 #'        one-sided testing of H0: \code{mu1 / mu2 = thetaH0} are simulated, default is \code{FALSE}.
-#' @inheritParams param_thetaH0
-#' @inheritParams param_alternative_simulation
-#' @inheritParams param_stDevSimulation
-#' @inheritParams param_directionUpper
-#' @inheritParams param_allocationRatioPlanned
-#' @inheritParams param_plannedSubjects
-#' @inheritParams param_minNumberOfSubjectsPerStage
-#' @inheritParams param_maxNumberOfSubjectsPerStage
-#' @inheritParams param_conditionalPowerSimulation
-#' @inheritParams param_thetaH1
-#' @inheritParams param_stDevH1
-#' @inheritParams param_maxNumberOfIterations
-#' @inheritParams param_calcSubjectsFunction
-#' @inheritParams param_seed
-#' @inheritParams param_three_dots
-#' @inheritParams param_showStatistics
 #'
 #' @details
 #' At given design the function simulates the power, stopping probabilities, conditional power, and expected
@@ -600,79 +582,74 @@
 #'         user defined with \code{thetaH1}.
 #' }
 #'
-#' @template return_object_simulation_results
-#' @template how_to_get_help_for_generics
-#'
-#' @template examples_get_simulation_means
-#'
 #' @export
 #'
-getSimulationMeans <- function(design = NULL, ...,
+deprecated_getSimulationMeans <- function(design = NULL, ...,
         groups = 2L,
         normalApproximation = TRUE,
         meanRatio = FALSE,
         thetaH0 = ifelse(meanRatio, 1, 0),
-        alternative = seq(0, 1, 0.2), # C_ALTERNATIVE_POWER_SIMULATION_DEFAULT
-        stDev = 1, # C_STDEV_DEFAULT
+        alternative = seq(0, 1, 0.2), # rpact:::C_ALTERNATIVE_POWER_SIMULATION_DEFAULT
+        stDev = 1, # rpact:::C_STDEV_DEFAULT
         plannedSubjects = NA_real_,
-        directionUpper = TRUE, # C_DIRECTION_UPPER_DEFAULT
+        directionUpper = TRUE, # rpact:::C_DIRECTION_UPPER_DEFAULT
         allocationRatioPlanned = NA_real_,
         minNumberOfSubjectsPerStage = NA_real_,
         maxNumberOfSubjectsPerStage = NA_real_,
         conditionalPower = NA_real_,
         thetaH1 = NA_real_,
         stDevH1 = NA_real_,
-        maxNumberOfIterations = 1000L, # C_MAX_SIMULATION_ITERATIONS_DEFAULT
+        maxNumberOfIterations = 1000L, # rpact:::C_MAX_SIMULATION_ITERATIONS_DEFAULT
         seed = NA_real_,
         calcSubjectsFunction = NULL,
         showStatistics = FALSE) {
     if (is.null(design)) {
-        design <- .getDefaultDesign(..., type = "simulation")
-        .warnInCaseOfUnknownArguments(
+        design <- rpact:::.getDefaultDesign(..., type = "simulation")
+        rpact:::.warnInCaseOfUnknownArguments(
             functionName = "getSimulationMeans",
             ignore = c(
-                .getDesignArgumentsToIgnoreAtUnknownArgumentCheck(design, powerCalculationEnabled = TRUE),
-                "showStatistics", "cppEnabled"
+                rpact:::.getDesignArgumentsToIgnoreAtUnknownArgumentCheck(design, powerCalculationEnabled = TRUE),
+                "showStatistics"
             ), ...
         )
     } else {
-        .assertIsTrialDesign(design)
-        .warnInCaseOfUnknownArguments(functionName = "getSimulationMeans", ignore = c("showStatistics", "cppEnabled"), ...)
-        .warnInCaseOfTwoSidedPowerArgument(...)
+        rpact:::.assertIsTrialDesign(design)
+        rpact:::.warnInCaseOfUnknownArguments(functionName = "getSimulationMeans", ignore = c("showStatistics"), ...)
+        rpact:::.warnInCaseOfTwoSidedPowerArgument(...)
     }
-    .assertIsSingleLogical(directionUpper, "directionUpper")
-    .assertIsSingleNumber(thetaH0, "thetaH0")
+    rpact:::.assertIsSingleLogical(directionUpper, "directionUpper")
+    rpact:::.assertIsSingleNumber(thetaH0, "thetaH0")
     if (meanRatio) {
-        .assertIsInOpenInterval(thetaH0, "thetaH0", 0, NULL, naAllowed = TRUE)
-        .assertIsInOpenInterval(thetaH1, "thetaH1", 0, NULL, naAllowed = TRUE)
-        if (identical(alternative, C_ALTERNATIVE_POWER_SIMULATION_DEFAULT)) {
-            alternative <- C_ALTERNATIVE_POWER_SIMULATION_MEAN_RATIO_DEFAULT
+        rpact:::.assertIsInOpenInterval(thetaH0, "thetaH0", 0, NULL, naAllowed = TRUE)
+        rpact:::.assertIsInOpenInterval(thetaH1, "thetaH1", 0, NULL, naAllowed = TRUE)
+        if (identical(alternative, rpact:::C_ALTERNATIVE_POWER_SIMULATION_DEFAULT)) {
+            alternative <- rpact:::C_ALTERNATIVE_POWER_SIMULATION_MEAN_RATIO_DEFAULT
         }
-        .assertIsInOpenInterval(alternative, "alternative", 0, NULL, naAllowed = TRUE)
+        rpact:::.assertIsInOpenInterval(alternative, "alternative", 0, NULL, naAllowed = TRUE)
     }
-    .assertIsValidGroupsParameter(groups)
-    .assertIsNumericVector(alternative, "alternative", naAllowed = FALSE)
-    .assertIsNumericVector(minNumberOfSubjectsPerStage, "minNumberOfSubjectsPerStage", naAllowed = TRUE)
-    .assertIsNumericVector(maxNumberOfSubjectsPerStage, "maxNumberOfSubjectsPerStage", naAllowed = TRUE)
-    .assertIsSingleNumber(conditionalPower, "conditionalPower", naAllowed = TRUE)
-    .assertIsInOpenInterval(conditionalPower, "conditionalPower", 0, 1, naAllowed = TRUE)
-    .assertIsSingleNumber(thetaH1, "thetaH1", naAllowed = TRUE)
-    .assertIsSingleNumber(stDevH1, "stDevH1", naAllowed = TRUE)
-    .assertIsInOpenInterval(stDevH1, "stDevH1", 0, NULL, naAllowed = TRUE)
-    .assertIsNumericVector(allocationRatioPlanned, "allocationRatioPlanned", naAllowed = TRUE)
-    .assertIsInOpenInterval(allocationRatioPlanned, "allocationRatioPlanned", 0, C_ALLOCATION_RATIO_MAXIMUM, naAllowed = TRUE)
-    .assertIsSinglePositiveInteger(maxNumberOfIterations, "maxNumberOfIterations", validateType = FALSE)
-    .assertIsSingleNumber(seed, "seed", naAllowed = TRUE)
-    .assertIsValidStandardDeviation(stDev)
-    .assertIsSingleLogical(showStatistics, "showStatistics", naAllowed = FALSE)
-    .assertIsSingleLogical(normalApproximation, "normalApproximation", naAllowed = FALSE)
-    .assertIsValidPlannedSubjectsOrEvents(design, plannedSubjects, parameterName = "plannedSubjects")
+    rpact:::.assertIsValidGroupsParameter(groups)
+    rpact:::.assertIsNumericVector(alternative, "alternative", naAllowed = FALSE)
+    rpact:::.assertIsNumericVector(minNumberOfSubjectsPerStage, "minNumberOfSubjectsPerStage", naAllowed = TRUE)
+    rpact:::.assertIsNumericVector(maxNumberOfSubjectsPerStage, "maxNumberOfSubjectsPerStage", naAllowed = TRUE)
+    rpact:::.assertIsSingleNumber(conditionalPower, "conditionalPower", naAllowed = TRUE)
+    rpact:::.assertIsInOpenInterval(conditionalPower, "conditionalPower", 0, 1, naAllowed = TRUE)
+    rpact:::.assertIsSingleNumber(thetaH1, "thetaH1", naAllowed = TRUE)
+    rpact:::.assertIsSingleNumber(stDevH1, "stDevH1", naAllowed = TRUE)
+    rpact:::.assertIsInOpenInterval(stDevH1, "stDevH1", 0, NULL, naAllowed = TRUE)
+    rpact:::.assertIsNumericVector(allocationRatioPlanned, "allocationRatioPlanned", naAllowed = TRUE)
+    rpact:::.assertIsInOpenInterval(allocationRatioPlanned, "allocationRatioPlanned", 0, rpact:::C_ALLOCATION_RATIO_MAXIMUM, naAllowed = TRUE)
+    rpact:::.assertIsSinglePositiveInteger(maxNumberOfIterations, "maxNumberOfIterations", validateType = FALSE)
+    rpact:::.assertIsSingleNumber(seed, "seed", naAllowed = TRUE)
+    rpact:::.assertIsValidStandardDeviation(stDev)
+    rpact:::.assertIsSingleLogical(showStatistics, "showStatistics", naAllowed = FALSE)
+    rpact:::.assertIsSingleLogical(normalApproximation, "normalApproximation", naAllowed = FALSE)
+    rpact:::.assertIsValidPlannedSubjectsOrEvents(design, plannedSubjects, parameterName = "plannedSubjects")
 	
-	simulationResults <- SimulationResultsMeans(design, showStatistics = showStatistics)
+	simulationResults <- rpact:::SimulationResultsMeans(design, showStatistics = showStatistics)
 
     if (design$sided == 2) {
         stop(
-            C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
+            rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
             "only one-sided case is implemented for the simulation design"
         )
     }
@@ -691,40 +668,40 @@ getSimulationMeans <- function(design = NULL, ...,
             )
             simulationResults$allocationRatioPlanned <- NA_real_
         }
-        simulationResults$.setParameterType("allocationRatioPlanned", C_PARAM_NOT_APPLICABLE)
+        simulationResults$.setParameterType("allocationRatioPlanned", rpact:::C_PARAM_NOT_APPLICABLE)
     } else { 
 		if (any(is.na(allocationRatioPlanned))) {
-        	allocationRatioPlanned <- C_ALLOCATION_RATIO_DEFAULT
+        	allocationRatioPlanned <- rpact:::C_ALLOCATION_RATIO_DEFAULT
 		}	
         
         if (length(allocationRatioPlanned) == 1) {
             allocationRatioPlanned <- rep(allocationRatioPlanned, design$kMax)
         } else if (length(allocationRatioPlanned) != design$kMax) {
             stop(
-                C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
-                "'allocationRatioPlanned' (", .arrayToString(allocationRatioPlanned), ") ",
+                rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
+                "'allocationRatioPlanned' (", rpact:::.arrayToString(allocationRatioPlanned), ") ",
                 "must have length 1 or ", design$kMax, " (kMax)"
             )
         }
 		
         if (length(unique(allocationRatioPlanned)) == 1) {
-            .setValueAndParameterType(
+            rpact:::.setValueAndParameterType(
                 simulationResults, "allocationRatioPlanned",
                 allocationRatioPlanned[1], defaultValue = 1
             )
         } else {
-            .setValueAndParameterType(
+            rpact:::.setValueAndParameterType(
                 simulationResults, "allocationRatioPlanned",
                 allocationRatioPlanned, defaultValue = rep(1, design$kMax)
             )
         }
     }
 
-    thetaH1 <- .ignoreParameterIfNotUsed(
+    thetaH1 <- rpact:::.ignoreParameterIfNotUsed(
         "thetaH1", thetaH1, design$kMax > 1,
         "design is fixed ('kMax' = 1)", "Assumed effect"
     )
-    stDevH1 <- .ignoreParameterIfNotUsed(
+    stDevH1 <- rpact:::.ignoreParameterIfNotUsed(
         "stDevH1", stDevH1, design$kMax > 1,
         "design is fixed ('kMax' = 1)", "Assumed effect"
     )
@@ -734,23 +711,23 @@ getSimulationMeans <- function(design = NULL, ...,
             call. = FALSE
         )
     }
-    conditionalPower <- .ignoreParameterIfNotUsed(
+    conditionalPower <- rpact:::.ignoreParameterIfNotUsed(
         "conditionalPower",
         conditionalPower, design$kMax > 1, "design is fixed ('kMax' = 1)"
     )
-    minNumberOfSubjectsPerStage <- .ignoreParameterIfNotUsed(
+    minNumberOfSubjectsPerStage <- rpact:::.ignoreParameterIfNotUsed(
         "minNumberOfSubjectsPerStage",
         minNumberOfSubjectsPerStage, design$kMax > 1, "design is fixed ('kMax' = 1)"
     )
-    maxNumberOfSubjectsPerStage <- .ignoreParameterIfNotUsed(
+    maxNumberOfSubjectsPerStage <- rpact:::.ignoreParameterIfNotUsed(
         "maxNumberOfSubjectsPerStage",
         maxNumberOfSubjectsPerStage, design$kMax > 1, "design is fixed ('kMax' = 1)"
     )
-    minNumberOfSubjectsPerStage <- .assertIsValidNumberOfSubjectsPerStage(minNumberOfSubjectsPerStage,
+    minNumberOfSubjectsPerStage <- rpact:::.assertIsValidNumberOfSubjectsPerStage(minNumberOfSubjectsPerStage,
         "minNumberOfSubjectsPerStage", plannedSubjects, conditionalPower, calcSubjectsFunction, design$kMax,
         endpoint = "means"
     )
-    maxNumberOfSubjectsPerStage <- .assertIsValidNumberOfSubjectsPerStage(maxNumberOfSubjectsPerStage,
+    maxNumberOfSubjectsPerStage <- rpact:::.assertIsValidNumberOfSubjectsPerStage(maxNumberOfSubjectsPerStage,
         "maxNumberOfSubjectsPerStage", plannedSubjects, conditionalPower, calcSubjectsFunction, design$kMax,
         endpoint = "means"
     )
@@ -759,7 +736,7 @@ getSimulationMeans <- function(design = NULL, ...,
         if (!normalApproximation) {
             if (!all(is.na(minNumberOfSubjectsPerStage)) && (any(minNumberOfSubjectsPerStage < groups * 2))) {
                 stop(
-                    C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
+                    rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
                     "minNumberOfSubjectsPerStage not correctly specified"
                 )
             }
@@ -767,17 +744,17 @@ getSimulationMeans <- function(design = NULL, ...,
         if (any(maxNumberOfSubjectsPerStage - minNumberOfSubjectsPerStage < 0) &&
                 !all(is.na(maxNumberOfSubjectsPerStage - minNumberOfSubjectsPerStage))) {
             stop(
-                C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT, "'maxNumberOfSubjectsPerStage' (",
-                .arrayToString(maxNumberOfSubjectsPerStage),
+                rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT, "'maxNumberOfSubjectsPerStage' (",
+                rpact:::.arrayToString(maxNumberOfSubjectsPerStage),
                 ") must be not smaller than minNumberOfSubjectsPerStage' (",
-                .arrayToString(minNumberOfSubjectsPerStage), ")"
+                rpact:::.arrayToString(minNumberOfSubjectsPerStage), ")"
             )
         }
-        .setValueAndParameterType(
+        rpact:::.setValueAndParameterType(
             simulationResults, "minNumberOfSubjectsPerStage",
             minNumberOfSubjectsPerStage, NA_real_
         )
-        .setValueAndParameterType(
+        rpact:::.setValueAndParameterType(
             simulationResults, "maxNumberOfSubjectsPerStage",
             maxNumberOfSubjectsPerStage, NA_real_
         )
@@ -793,7 +770,7 @@ getSimulationMeans <- function(design = NULL, ...,
         if (length(minNumberOfSubjectsPerStage) != 1 ||
                 !is.na(minNumberOfSubjectsPerStage)) {
             warning("'minNumberOfSubjectsPerStage' (",
-                .arrayToString(minNumberOfSubjectsPerStage), ") ",
+                rpact:::.arrayToString(minNumberOfSubjectsPerStage), ") ",
                 "will be ignored because neither 'conditionalPower' nor ",
                 "'calcSubjectsFunction' is defined",
                 call. = FALSE
@@ -803,7 +780,7 @@ getSimulationMeans <- function(design = NULL, ...,
         if (length(maxNumberOfSubjectsPerStage) != 1 ||
                 !is.na(maxNumberOfSubjectsPerStage)) {
             warning("'maxNumberOfSubjectsPerStage' (",
-                .arrayToString(maxNumberOfSubjectsPerStage), ") ",
+                rpact:::.arrayToString(maxNumberOfSubjectsPerStage), ") ",
                 "will be ignored because neither 'conditionalPower' nor ",
                 "'calcSubjectsFunction' is defined",
                 call. = FALSE
@@ -814,9 +791,9 @@ getSimulationMeans <- function(design = NULL, ...,
 
     simulationResults$.setParameterType(
         "calcSubjectsFunction",
-        ifelse(design$kMax == 1, C_PARAM_NOT_APPLICABLE,
+        ifelse(design$kMax == 1, rpact:::C_PARAM_NOT_APPLICABLE,
             ifelse(!is.null(calcSubjectsFunction) && design$kMax > 1,
-                C_PARAM_USER_DEFINED, C_PARAM_DEFAULT_VALUE
+                rpact:::C_PARAM_USER_DEFINED, rpact:::C_PARAM_DEFAULT_VALUE
             )
         )
     )
@@ -825,64 +802,64 @@ getSimulationMeans <- function(design = NULL, ...,
     simulationResults$effect <- effect
     simulationResults$.setParameterType(
         "effect",
-        ifelse(thetaH0 == 0, C_PARAM_NOT_APPLICABLE, C_PARAM_GENERATED)
+        ifelse(thetaH0 == 0, rpact:::C_PARAM_NOT_APPLICABLE, rpact:::C_PARAM_GENERATED)
     )
 
-    .setValueAndParameterType(simulationResults, "normalApproximation", normalApproximation, TRUE)
-    .setValueAndParameterType(simulationResults, "meanRatio", meanRatio, FALSE)
-    .setValueAndParameterType(simulationResults, "thetaH0", thetaH0, ifelse(meanRatio, 1, 0))
-    .setValueAndParameterType(
+    rpact:::.setValueAndParameterType(simulationResults, "normalApproximation", normalApproximation, TRUE)
+    rpact:::.setValueAndParameterType(simulationResults, "meanRatio", meanRatio, FALSE)
+    rpact:::.setValueAndParameterType(simulationResults, "thetaH0", thetaH0, ifelse(meanRatio, 1, 0))
+    rpact:::.setValueAndParameterType(
         simulationResults, "alternative",
-        alternative, C_ALTERNATIVE_POWER_SIMULATION_DEFAULT
+        alternative, rpact:::C_ALTERNATIVE_POWER_SIMULATION_DEFAULT
     )
-    .setValueAndParameterType(simulationResults, "stDev", stDev, C_STDEV_DEFAULT)
-    .setValueAndParameterType(simulationResults, "groups", as.integer(groups), 2L)
-    .setValueAndParameterType(
+    rpact:::.setValueAndParameterType(simulationResults, "stDev", stDev, rpact:::C_STDEV_DEFAULT)
+    rpact:::.setValueAndParameterType(simulationResults, "groups", as.integer(groups), 2L)
+    rpact:::.setValueAndParameterType(
         simulationResults, "plannedSubjects",
         plannedSubjects, NA_real_
     )
-    .setValueAndParameterType(
+    rpact:::.setValueAndParameterType(
         simulationResults, "directionUpper",
-        directionUpper, C_DIRECTION_UPPER_DEFAULT
+        directionUpper, rpact:::C_DIRECTION_UPPER_DEFAULT
     )
-    .setValueAndParameterType(simulationResults, "minNumberOfSubjectsPerStage",
+    rpact:::.setValueAndParameterType(simulationResults, "minNumberOfSubjectsPerStage",
         minNumberOfSubjectsPerStage, NA_real_,
         notApplicableIfNA = TRUE
     )
-    .setValueAndParameterType(simulationResults, "maxNumberOfSubjectsPerStage",
+    rpact:::.setValueAndParameterType(simulationResults, "maxNumberOfSubjectsPerStage",
         maxNumberOfSubjectsPerStage, NA_real_,
         notApplicableIfNA = TRUE
     )
-    .setValueAndParameterType(simulationResults, "conditionalPower",
+    rpact:::.setValueAndParameterType(simulationResults, "conditionalPower",
         conditionalPower, NA_real_,
         notApplicableIfNA = TRUE
     )
-    .setValueAndParameterType(simulationResults, "thetaH1",
+    rpact:::.setValueAndParameterType(simulationResults, "thetaH1",
         thetaH1, NA_real_,
         notApplicableIfNA = TRUE
     )
-    .setValueAndParameterType(simulationResults, "stDevH1",
+    rpact:::.setValueAndParameterType(simulationResults, "stDevH1",
         stDevH1, NA_real_,
         notApplicableIfNA = TRUE
     )
-    .setValueAndParameterType(
+    rpact:::.setValueAndParameterType(
         simulationResults, "maxNumberOfIterations",
-        as.integer(maxNumberOfIterations), C_MAX_SIMULATION_ITERATIONS_DEFAULT
+        as.integer(maxNumberOfIterations), rpact:::C_MAX_SIMULATION_ITERATIONS_DEFAULT
     )
     simulationResults$.setParameterType("seed", ifelse(is.na(seed),
-        C_PARAM_DEFAULT_VALUE, C_PARAM_USER_DEFINED
+        rpact:::C_PARAM_DEFAULT_VALUE, rpact:::C_PARAM_USER_DEFINED
     ))
-    simulationResults$seed <- .setSeed(seed)
+    simulationResults$seed <- rpact:::.setSeed(seed)
 
-    if (.isTrialDesignGroupSequential(design)) {
+    if (rpact:::.isTrialDesignGroupSequential(design)) {
         designNumber <- 1L
-    } else if (.isTrialDesignInverseNormal(design)) {
+    } else if (rpact:::.isTrialDesignInverseNormal(design)) {
         designNumber <- 2L
-    } else if (.isTrialDesignFisher(design)) {
+    } else if (rpact:::.isTrialDesignFisher(design)) {
         designNumber <- 3L
     }
 
-    if (.isTrialDesignFisher(design)) {
+    if (rpact:::.isTrialDesignFisher(design)) {
         alpha0Vec <- design$alpha0Vec
         futilityBounds <- rep(NA_real_, design$kMax - 1)
     } else {
@@ -893,20 +870,18 @@ getSimulationMeans <- function(design = NULL, ...,
         stDevH1 <- stDev
     }
 
-    cppEnabled <- .getOptionalArgument("cppEnabled", ..., optionalArgumentDefaultValue = TRUE)
-    calcSubjectsFunctionList <- .getCalcSubjectsFunction(
+    calcSubjectsFunctionList <- rpact:::.getCalcSubjectsFunction(
         design = design,
         simulationResults = simulationResults,
         calcFunction = calcSubjectsFunction,
         expectedFunction = .getSimulationMeansStageSubjects,
-        cppEnabled = cppEnabled
+        cppEnabled = FALSE
     )
     calcSubjectsFunctionType <- calcSubjectsFunctionList$calcSubjectsFunctionType
     calcSubjectsFunctionR <- calcSubjectsFunctionList$calcSubjectsFunctionR
     calcSubjectsFunctionCpp <- calcSubjectsFunctionList$calcSubjectsFunctionCpp
 
-    fun <- if (cppEnabled) getSimulationMeansLoopCpp else .getSimulationMeansLoop
-    cppResult <- fun(
+    cppResult <- .getSimulationMeansLoop(
         alternative = alternative,
         kMax = design$kMax,
         maxNumberOfIterations = maxNumberOfIterations,
@@ -961,7 +936,7 @@ getSimulationMeans <- function(design = NULL, ...,
     simulationResults$conditionalPowerAchieved <- cppResult$conditionalPowerAchieved
 
     if (!all(is.na(simulationResults$conditionalPowerAchieved))) {
-        simulationResults$.setParameterType("conditionalPowerAchieved", C_PARAM_GENERATED)
+        simulationResults$.setParameterType("conditionalPowerAchieved", rpact:::C_PARAM_GENERATED)
     }
 
     data <- cppResult$data

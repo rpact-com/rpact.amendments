@@ -50,12 +50,12 @@
         if (groups == 1) {
             if (!normalApproximation) {
                 if (directionUpper) {
-                    value <- .getOneMinusQNorm(stats::pbinom(e1 - 1,
+                    value <- rpact:::.getOneMinusQNorm(stats::pbinom(e1 - 1,
                         n1, thetaH0,
                         lower.tail = FALSE
                     ))
                 } else {
-                    value <- .getOneMinusQNorm(stats::pbinom(e1,
+                    value <- rpact:::.getOneMinusQNorm(stats::pbinom(e1,
                         n1, thetaH0,
                         lower.tail = TRUE
                     ))
@@ -69,12 +69,12 @@
             r2 <- e2 / n2
             if (!normalApproximation) {
                 if (directionUpper) {
-                    value <- .getOneMinusQNorm(stats::phyper(e1 - 1, e1 + e2,
+                    value <- rpact:::.getOneMinusQNorm(stats::phyper(e1 - 1, e1 + e2,
                         n1 + n2 - e1 - e2, n1,
                         lower.tail = FALSE
                     ))
                 } else {
-                    value <- .getOneMinusQNorm(stats::phyper(e1, e1 + e2,
+                    value <- rpact:::.getOneMinusQNorm(stats::phyper(e1, e1 + e2,
                         n1 + n2 - e1 - e2, n1,
                         lower.tail = TRUE
                     ))
@@ -84,7 +84,7 @@
                     if (r1 - r2 - thetaH0 == 0) {
                         value <- 0
                     } else {
-                        fm <- .getFarringtonManningValuesDiff(
+                        fm <- rpact:::.getFarringtonManningValuesDiff(
                             rate1 = r1, rate2 = r2,
                             theta = thetaH0, allocation = n1 / n2
                         )
@@ -95,7 +95,7 @@
                     if (r1 - r2 * thetaH0 == 0) {
                         value <- 0
                     } else {
-                        fm <- .getFarringtonManningValuesRatio(
+                        fm <- rpact:::.getFarringtonManningValuesRatio(
                             rate1 = r1, rate2 = r2,
                             theta = thetaH0, allocation = n1 / n2
                         )
@@ -117,11 +117,11 @@
             if (groups == 1) {
                 if (!normalApproximation) {
                     if (directionUpper) {
-                        testStatisticsPerStage <- .getOneMinusQNorm(
+                        testStatisticsPerStage <- rpact:::.getOneMinusQNorm(
                             stats::pbinom(e1 - 1, n1, thetaH0, lower.tail = FALSE)
                         )
                     } else {
-                        testStatisticsPerStage <- .getOneMinusQNorm(
+                        testStatisticsPerStage <- rpact:::.getOneMinusQNorm(
                             stats::pbinom(e1, n1, thetaH0, lower.tail = TRUE)
                         )
                     }
@@ -135,12 +135,12 @@
                 r2 <- e2 / n2
                 if (!normalApproximation) {
                     if (directionUpper) {
-                        testStatisticsPerStage <- .getOneMinusQNorm(stats::phyper(
+                        testStatisticsPerStage <- rpact:::.getOneMinusQNorm(stats::phyper(
                             e1 - 1, e1 + e2, n1 + n2 - e1 - e2, n1,
                             lower.tail = FALSE
                         ))
                     } else {
-                        testStatisticsPerStage <- .getOneMinusQNorm(stats::phyper(
+                        testStatisticsPerStage <- rpact:::.getOneMinusQNorm(stats::phyper(
                             e1, e1 + e2, n1 + n2 - e1 - e2, n1,
                             lower.tail = TRUE
                         ))
@@ -150,7 +150,7 @@
                         if (r1 - r2 - thetaH0 == 0) {
                             testStatisticsPerStage <- 0
                         } else {
-                            fm <- .getFarringtonManningValuesDiff(
+                            fm <- rpact:::.getFarringtonManningValuesDiff(
                                 rate1 = r1, rate2 = r2, theta = thetaH0, allocation = n1 / n2
                             )
                             testStatisticsPerStage <- (2 * directionUpper - 1) *
@@ -160,7 +160,7 @@
                         if (r1 - r2 * thetaH0 == 0) {
                             testStatisticsPerStage <- 0
                         } else {
-                            fm <- .getFarringtonManningValuesRatio(
+                            fm <- rpact:::.getFarringtonManningValuesRatio(
                                 rate1 = r1,
                                 rate2 = r2, theta = thetaH0, allocation = n1 / n2
                             )
@@ -180,12 +180,12 @@
                     if (directionUpper) {
                         testStatisticsPerStage <- c(
                             testStatisticsPerStage,
-                            .getOneMinusQNorm(stats::pbinom(e1 - 1, n1, thetaH0, lower.tail = FALSE))
+                            rpact:::.getOneMinusQNorm(stats::pbinom(e1 - 1, n1, thetaH0, lower.tail = FALSE))
                         )
                     } else {
                         testStatisticsPerStage <- c(
                             testStatisticsPerStage,
-                            .getOneMinusQNorm(stats::pbinom(e1, n1, thetaH0, lower.tail = TRUE))
+                            rpact:::.getOneMinusQNorm(stats::pbinom(e1, n1, thetaH0, lower.tail = TRUE))
                         )
                     }
                 } else {
@@ -202,12 +202,12 @@
                     if (directionUpper) {
                         testStatisticsPerStage <- c(
                             testStatisticsPerStage,
-                            .getOneMinusQNorm(stats::phyper(e1 - 1, e1 + e2, n1 + n2 - e1 - e2, n1, lower.tail = FALSE))
+                            rpact:::.getOneMinusQNorm(stats::phyper(e1 - 1, e1 + e2, n1 + n2 - e1 - e2, n1, lower.tail = FALSE))
                         )
                     } else {
                         testStatisticsPerStage <- c(
                             testStatisticsPerStage,
-                            .getOneMinusQNorm(stats::phyper(e1, e1 + e2, n1 + n2 - e1 - e2, n1, lower.tail = TRUE))
+                            rpact:::.getOneMinusQNorm(stats::phyper(e1, e1 + e2, n1 + n2 - e1 - e2, n1, lower.tail = TRUE))
                         )
                     }
                 } else {
@@ -215,7 +215,7 @@
                         if (r1 - r2 - thetaH0 == 0) {
                             testStatisticsPerStage <- c(testStatisticsPerStage, 0)
                         } else {
-                            fm <- .getFarringtonManningValuesDiff(
+                            fm <- rpact:::.getFarringtonManningValuesDiff(
                                 rate1 = r1, rate2 = r2, theta = thetaH0, allocation = n1 / n2
                             )
                             testStatisticsPerStage <- c(testStatisticsPerStage, (2 * directionUpper - 1) *
@@ -225,7 +225,7 @@
                         if (r1 - r2 * thetaH0 == 0) {
                             testStatisticsPerStage <- c(testStatisticsPerStage, 0)
                         } else {
-                            fm <- .getFarringtonManningValuesRatio(
+                            fm <- rpact:::.getFarringtonManningValuesRatio(
                                 rate1 = r1, rate2 = r2, theta = thetaH0, allocation = n1 / n2
                             )
                             testStatisticsPerStage <- c(testStatisticsPerStage, (2 * directionUpper - 1) *
@@ -247,7 +247,7 @@
             }
         } else if (designNumber == 3L) {
             if (stage == 1) {
-                value <- 1 - pnorm(testStatisticsPerStage)
+                value <- 1 - stats::pnorm(testStatisticsPerStage)
             } else {
                 weightsFisher <- rep(NA_real_, stage)
                 weightsFisher[1] <- 1
@@ -255,11 +255,11 @@
                     weightsFisher[2:stage] <- sqrt(informationRates[2:stage] -
                         informationRates[1:(stage - 1)]) / sqrt(informationRates[1])
                 }
-                value <- prod((1 - pnorm(testStatisticsPerStage[1:stage]))^weightsFisher[1:stage])
+                value <- prod((1 - stats::pnorm(testStatisticsPerStage[1:stage]))^weightsFisher[1:stage])
             }
         }
 
-        pValuesSeparate <- 1 - pnorm(testStatisticsPerStage)
+        pValuesSeparate <- 1 - stats::pnorm(testStatisticsPerStage)
     }
 
     return(list(
@@ -295,7 +295,7 @@
     if (groups == 1) {
         stageSubjects <-
             (max(0, conditionalCriticalValue * sqrt(thetaH0 * (1 - thetaH0)) +
-                .getQNorm(conditionalPower) * sqrt(overallRate[1] * (1 - overallRate[1]))))^2 /
+                rpact:::.getQNorm(conditionalPower) * sqrt(overallRate[1] * (1 - overallRate[1]))))^2 /
                 (max(1e-12, (2 * directionUpper - 1) * (overallRate[1] - thetaH0)))^2
     } else {
         mult <- 1
@@ -307,7 +307,7 @@
         stageSubjects <- (1 + 1 / allocationRatioPlanned[stage]) * (max(0, conditionalCriticalValue *
             sqrt(farringtonManningValue1 * (1 - farringtonManningValue1) +
                 farringtonManningValue2 * (1 - farringtonManningValue2) * allocationRatioPlanned[stage] * mult^2) +
-            .getQNorm(conditionalPower) * sqrt(overallRate[1] * (1 - overallRate[1]) + overallRate[2] *
+            rpact:::.getQNorm(conditionalPower) * sqrt(overallRate[1] * (1 - overallRate[1]) + overallRate[2] *
                 (1 - overallRate[2]) * allocationRatioPlanned[stage] * mult^2)))^2 /
             (max(1e-12, (2 * directionUpper - 1) * (overallRate[1] - mult * overallRate[2] - corr)))^2
     }
@@ -360,7 +360,7 @@
 
         # conditional critical value to reject the null hypotheses at the next stage of the trial
         if (designNumber == 3L) {
-            conditionalCriticalValue <- .getOneMinusQNorm((criticalValues[k] /
+            conditionalCriticalValue <- rpact:::.getOneMinusQNorm((criticalValues[k] /
                 testStatistic$value)^(1 / sqrt((informationRates[k] -
                 informationRates[k - 1]) / informationRates[1])))
         } else {
@@ -375,12 +375,12 @@
 
         if (groups == 2) {
             if (!riskRatio) {
-                fm <- .getFarringtonManningValuesDiff(
+                fm <- rpact:::.getFarringtonManningValuesDiff(
                     rate1 = overallRate[1], rate2 = overallRate[2],
                     theta = thetaH0, allocation = allocationRatioPlanned[k]
                 )
             } else {
-                fm <- .getFarringtonManningValuesRatio(
+                fm <- rpact:::.getFarringtonManningValuesRatio(
                     rate1 = overallRate[1], rate2 = overallRate[2],
                     theta = thetaH0, allocation = allocationRatioPlanned[k]
                 )
@@ -753,31 +753,13 @@
 #' Returns the simulated power, stopping probabilities, conditional power, and expected sample size for
 #' testing rates in a one or two treatment groups testing situation.
 #'
-#' @inheritParams param_design_with_default
-#' @inheritParams param_groups
-#' @inheritParams param_normalApproximation
 #' @param riskRatio If \code{TRUE}, the design characteristics for
 #'        one-sided testing of H0: \code{pi1 / pi2 = thetaH0} are simulated, default is \code{FALSE}.
-#' @inheritParams param_thetaH0
-#' @inheritParams param_pi1_rates
-#' @inheritParams param_pi2_rates
-#' @inheritParams param_directionUpper
-#' @inheritParams param_allocationRatioPlanned
-#' @inheritParams param_plannedSubjects
-#' @inheritParams param_minNumberOfSubjectsPerStage
-#' @inheritParams param_maxNumberOfSubjectsPerStage
-#' @inheritParams param_conditionalPowerSimulation
 #' @param pi1H1 If specified, the assumed probability in the active treatment group if two treatment groups
 #'        are considered, or the assumed probability for a one treatment group design, for which the conditional
 #'        power was calculated.
 #' @param pi2H1 If specified, the assumed probability in the reference group if two treatment groups
 #'        are considered, for which the conditional power was calculated.
-#' @inheritParams param_maxNumberOfIterations
-#' @inheritParams param_calcSubjectsFunction
-#' @inheritParams param_seed
-#' @inheritParams param_three_dots
-#' @inheritParams param_showStatistics
-
 #'
 #' @details
 #' At given design the function simulates the power, stopping probabilities, conditional power, and expected
@@ -851,115 +833,110 @@
 #'         user defined with \code{pi1H1} and \code{pi2H1}.
 #' }
 #'
-#' @template return_object_simulation_results
-#' @template how_to_get_help_for_generics
-#'
-#' @template examples_get_simulation_rates
-#'
 #' @export
 #'
-getSimulationRates <- function(design = NULL, ...,
+deprecated_getSimulationRates <- function(design = NULL, ...,
         groups = 2L,
         normalApproximation = TRUE,
         riskRatio = FALSE,
         thetaH0 = ifelse(riskRatio, 1, 0),
-        pi1 = seq(0.2, 0.5, 0.1), # C_PI_1_DEFAULT
+        pi1 = seq(0.2, 0.5, 0.1), # rpact:::C_PI_1_DEFAULT
         pi2 = NA_real_,
         plannedSubjects = NA_real_,
-        directionUpper = TRUE, # C_DIRECTION_UPPER_DEFAULT
+        directionUpper = TRUE, # rpact:::C_DIRECTION_UPPER_DEFAULT
         allocationRatioPlanned = NA_real_,
         minNumberOfSubjectsPerStage = NA_real_,
         maxNumberOfSubjectsPerStage = NA_real_,
         conditionalPower = NA_real_,
         pi1H1 = NA_real_,
         pi2H1 = NA_real_,
-        maxNumberOfIterations = 1000L, # C_MAX_SIMULATION_ITERATIONS_DEFAULT
+        maxNumberOfIterations = 1000L, # rpact:::C_MAX_SIMULATION_ITERATIONS_DEFAULT
         seed = NA_real_,
         calcSubjectsFunction = NULL,
         showStatistics = FALSE) {
     if (is.null(design)) {
-        design <- .getDefaultDesign(..., type = "simulation")
-        .warnInCaseOfUnknownArguments(
+        design <- rpact:::.getDefaultDesign(..., type = "simulation")
+        rpact:::.warnInCaseOfUnknownArguments(
             functionName = "getSimulationRates",
             ignore = c(
-                .getDesignArgumentsToIgnoreAtUnknownArgumentCheck(design, powerCalculationEnabled = TRUE),
-                "showStatistics", "cppEnabled"
+                rpact:::.getDesignArgumentsToIgnoreAtUnknownArgumentCheck(design, powerCalculationEnabled = TRUE),
+                "showStatistics"
             ), ...
         )
     } else {
-        .assertIsTrialDesign(design)
-        .warnInCaseOfUnknownArguments(
+        rpact:::.assertIsTrialDesign(design)
+        rpact:::.warnInCaseOfUnknownArguments(
             functionName = "getSimulationRates",
-            ignore = c("showStatistics", "cppEnabled"), ...
+            ignore = c("showStatistics"), ...
         )
-        .warnInCaseOfTwoSidedPowerArgument(...)
+        rpact:::.warnInCaseOfTwoSidedPowerArgument(...)
     }
-    .assertIsSingleLogical(directionUpper, "directionUpper")
-    .assertIsSingleNumber(thetaH0, "thetaH0")
-    .assertIsValidGroupsParameter(groups)
-    .assertIsSingleLogical(normalApproximation, "normalApproximation")
-    .assertIsSingleLogical(riskRatio, "riskRatio")
+    rpact:::.assertIsSingleLogical(directionUpper, "directionUpper")
+    rpact:::.assertIsSingleNumber(thetaH0, "thetaH0")
+    rpact:::.assertIsValidGroupsParameter(groups)
+    rpact:::.assertIsSingleLogical(normalApproximation, "normalApproximation")
+    rpact:::.assertIsSingleLogical(riskRatio, "riskRatio")
     if (groups == 1L) {
-        .assertIsInOpenInterval(thetaH0, "thetaH0", 0, 1, naAllowed = FALSE)
+        rpact:::.assertIsInOpenInterval(thetaH0, "thetaH0", 0, 1, naAllowed = FALSE)
     } else {
         if (riskRatio) {
-            .assertIsInOpenInterval(thetaH0, "thetaH0", 0, NULL, naAllowed = TRUE)
+            rpact:::.assertIsInOpenInterval(thetaH0, "thetaH0", 0, NULL, naAllowed = TRUE)
         } else {
-            .assertIsInOpenInterval(thetaH0, "thetaH0", -1, 1, naAllowed = TRUE)
+            rpact:::.assertIsInOpenInterval(thetaH0, "thetaH0", -1, 1, naAllowed = TRUE)
         }
     }
-    .assertIsNumericVector(pi1, "pi1", naAllowed = FALSE)
-    .assertIsInOpenInterval(pi1, "pi1", 0, 1, naAllowed = FALSE)
-    .assertIsNumericVector(pi2, "pi2", naAllowed = TRUE)
-    .assertIsInOpenInterval(pi2, "pi2", 0, 1, naAllowed = TRUE)
-    .assertIsNumericVector(minNumberOfSubjectsPerStage, "minNumberOfSubjectsPerStage", naAllowed = TRUE)
-    .assertIsNumericVector(maxNumberOfSubjectsPerStage, "maxNumberOfSubjectsPerStage", naAllowed = TRUE)
-    .assertIsSingleNumber(conditionalPower, "conditionalPower", naAllowed = TRUE)
-    .assertIsInOpenInterval(conditionalPower, "conditionalPower", 0, 1, naAllowed = TRUE)
-    .assertIsSingleNumber(pi1H1, "pi1H1", naAllowed = TRUE)
-    .assertIsInOpenInterval(pi1H1, "pi1H1", 0, 1, naAllowed = TRUE)
-    .assertIsSingleNumber(pi2H1, "pi2H1", naAllowed = TRUE)
-    .assertIsInOpenInterval(pi2H1, "pi2H1", 0, 1, naAllowed = TRUE)
-    .assertIsNumericVector(allocationRatioPlanned, "allocationRatioPlanned", naAllowed = TRUE)
-    .assertIsInOpenInterval(allocationRatioPlanned, "allocationRatioPlanned", 0, C_ALLOCATION_RATIO_MAXIMUM, naAllowed = TRUE)
-    .assertIsSinglePositiveInteger(maxNumberOfIterations, "maxNumberOfIterations", validateType = FALSE)
-    .assertIsSingleNumber(seed, "seed", naAllowed = TRUE)
-    .assertIsSingleLogical(showStatistics, "showStatistics", naAllowed = FALSE)
-    .assertIsValidPlannedSubjectsOrEvents(design, plannedSubjects, parameterName = "plannedSubjects") 
+    rpact:::.assertIsNumericVector(pi1, "pi1", naAllowed = FALSE)
+    rpact:::.assertIsInOpenInterval(pi1, "pi1", 0, 1, naAllowed = FALSE)
+    rpact:::.assertIsNumericVector(pi2, "pi2", naAllowed = TRUE)
+    rpact:::.assertIsInOpenInterval(pi2, "pi2", 0, 1, naAllowed = TRUE)
+    rpact:::.assertIsNumericVector(minNumberOfSubjectsPerStage, "minNumberOfSubjectsPerStage", naAllowed = TRUE)
+    rpact:::.assertIsNumericVector(maxNumberOfSubjectsPerStage, "maxNumberOfSubjectsPerStage", naAllowed = TRUE)
+    rpact:::.assertIsSingleNumber(conditionalPower, "conditionalPower", naAllowed = TRUE)
+    rpact:::.assertIsInOpenInterval(conditionalPower, "conditionalPower", 0, 1, naAllowed = TRUE)
+    rpact:::.assertIsSingleNumber(pi1H1, "pi1H1", naAllowed = TRUE)
+    rpact:::.assertIsInOpenInterval(pi1H1, "pi1H1", 0, 1, naAllowed = TRUE)
+    rpact:::.assertIsSingleNumber(pi2H1, "pi2H1", naAllowed = TRUE)
+    rpact:::.assertIsInOpenInterval(pi2H1, "pi2H1", 0, 1, naAllowed = TRUE)
+    rpact:::.assertIsNumericVector(allocationRatioPlanned, "allocationRatioPlanned", naAllowed = TRUE)
+    rpact:::.assertIsInOpenInterval(allocationRatioPlanned, "allocationRatioPlanned", 0, rpact:::C_ALLOCATION_RATIO_MAXIMUM, naAllowed = TRUE)
+    rpact:::.assertIsSinglePositiveInteger(maxNumberOfIterations, "maxNumberOfIterations", validateType = FALSE)
+    rpact:::.assertIsSingleNumber(seed, "seed", naAllowed = TRUE)
+    rpact:::.assertIsSingleLogical(showStatistics, "showStatistics", naAllowed = FALSE)
+    rpact:::.assertIsValidPlannedSubjectsOrEvents(design, plannedSubjects, parameterName = "plannedSubjects") 
 
     if (design$sided == 2) {
         stop(
-            C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
+            rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
             "only one-sided case is implemented for the simulation design"
         )
     }
 
     if (!normalApproximation && (groups == 2) && (riskRatio || (thetaH0 != 0))) {
         stop(
-            C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
+            rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
             "in the two-sample case, exact test is implemented only for testing H0: pi1 - pi2 = 0"
         )
     }
 
-    simulationResults <- SimulationResultsRates(design, showStatistics = showStatistics)
+    simulationResults <- rpact:::SimulationResultsRates(design, showStatistics = showStatistics)
 
-    conditionalPower <- .ignoreParameterIfNotUsed(
+    conditionalPower <- rpact:::.ignoreParameterIfNotUsed(
         "conditionalPower",
         conditionalPower, design$kMax > 1, "design is fixed ('kMax' = 1)"
     )
-    minNumberOfSubjectsPerStage <- .ignoreParameterIfNotUsed(
+    minNumberOfSubjectsPerStage <- rpact:::.ignoreParameterIfNotUsed(
         "minNumberOfSubjectsPerStage",
         minNumberOfSubjectsPerStage, design$kMax > 1, "design is fixed ('kMax' = 1)"
     )
-    maxNumberOfSubjectsPerStage <- .ignoreParameterIfNotUsed(
+    maxNumberOfSubjectsPerStage <- rpact:::.ignoreParameterIfNotUsed(
         "maxNumberOfSubjectsPerStage",
         maxNumberOfSubjectsPerStage, design$kMax > 1, "design is fixed ('kMax' = 1)"
     )
-    minNumberOfSubjectsPerStage <- .assertIsValidNumberOfSubjectsPerStage(minNumberOfSubjectsPerStage,
+    minNumberOfSubjectsPerStage <- rpact:::.assertIsValidNumberOfSubjectsPerStage(minNumberOfSubjectsPerStage,
         "minNumberOfSubjectsPerStage", plannedSubjects, conditionalPower, calcSubjectsFunction, design$kMax,
         endpoint = "rates"
     )
-    maxNumberOfSubjectsPerStage <- .assertIsValidNumberOfSubjectsPerStage(maxNumberOfSubjectsPerStage,
+    maxNumberOfSubjectsPerStage <- rpact:::.assertIsValidNumberOfSubjectsPerStage(maxNumberOfSubjectsPerStage,
         "maxNumberOfSubjectsPerStage", plannedSubjects, conditionalPower, calcSubjectsFunction, design$kMax,
         endpoint = "rates"
     )
@@ -967,17 +944,17 @@ getSimulationRates <- function(design = NULL, ...,
         if (any(maxNumberOfSubjectsPerStage - minNumberOfSubjectsPerStage < 0) &&
                 !all(is.na(maxNumberOfSubjectsPerStage - minNumberOfSubjectsPerStage))) {
             stop(
-                C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT, "'maxNumberOfSubjectsPerStage' (",
-                .arrayToString(maxNumberOfSubjectsPerStage),
+                rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT, "'maxNumberOfSubjectsPerStage' (",
+                rpact:::.arrayToString(maxNumberOfSubjectsPerStage),
                 ") must be not smaller than minNumberOfSubjectsPerStage' (",
-                .arrayToString(minNumberOfSubjectsPerStage), ")"
+                rpact:::.arrayToString(minNumberOfSubjectsPerStage), ")"
             )
         }
-        .setValueAndParameterType(
+        rpact:::.setValueAndParameterType(
             simulationResults, "minNumberOfSubjectsPerStage",
             minNumberOfSubjectsPerStage, NA_real_
         )
-        .setValueAndParameterType(
+        rpact:::.setValueAndParameterType(
             simulationResults, "maxNumberOfSubjectsPerStage",
             maxNumberOfSubjectsPerStage, NA_real_
         )
@@ -989,7 +966,7 @@ getSimulationRates <- function(design = NULL, ...,
         if (length(minNumberOfSubjectsPerStage) != 1 ||
                 !is.na(minNumberOfSubjectsPerStage)) {
             warning("'minNumberOfSubjectsPerStage' (",
-                .arrayToString(minNumberOfSubjectsPerStage), ") ",
+                rpact:::.arrayToString(minNumberOfSubjectsPerStage), ") ",
                 "will be ignored because neither 'conditionalPower' nor ",
                 "'calcSubjectsFunction' is defined",
                 call. = FALSE
@@ -999,7 +976,7 @@ getSimulationRates <- function(design = NULL, ...,
         if (length(maxNumberOfSubjectsPerStage) != 1 ||
                 !is.na(maxNumberOfSubjectsPerStage)) {
             warning("'maxNumberOfSubjectsPerStage' (",
-                .arrayToString(maxNumberOfSubjectsPerStage), ") ",
+                rpact:::.arrayToString(maxNumberOfSubjectsPerStage), ") ",
                 "will be ignored because neither 'conditionalPower' nor ",
                 "'calcSubjectsFunction' is defined",
                 call. = FALSE
@@ -1008,18 +985,18 @@ getSimulationRates <- function(design = NULL, ...,
         }
     }
 
-    pi1H1 <- .ignoreParameterIfNotUsed(
+    pi1H1 <- rpact:::.ignoreParameterIfNotUsed(
         "pi1H1", pi1H1, design$kMax > 1,
         "design is fixed ('kMax' = 1)"
     )
-    pi2H1 <- .ignoreParameterIfNotUsed(
+    pi2H1 <- rpact:::.ignoreParameterIfNotUsed(
         "pi2H1", pi2H1, design$kMax > 1,
         "design is fixed ('kMax' = 1)"
     )
-    pi1H1 <- .ignoreParameterIfNotUsed("pi1H1", pi1H1, groups == 2, "'groups' = 1")
-    pi2H1 <- .ignoreParameterIfNotUsed("pi2H1", pi2H1, groups == 2, "'groups' = 1")
+    pi1H1 <- rpact:::.ignoreParameterIfNotUsed("pi1H1", pi1H1, groups == 2, "'groups' = 1")
+    pi2H1 <- rpact:::.ignoreParameterIfNotUsed("pi2H1", pi2H1, groups == 2, "'groups' = 1")
 
-    .setValueAndParameterType(simulationResults, "pi2", pi2, NA_real_)
+    rpact:::.setValueAndParameterType(simulationResults, "pi2", pi2, NA_real_)
 
     if (groups == 1L) {
         if (isTRUE(riskRatio)) {
@@ -1036,7 +1013,7 @@ getSimulationRates <- function(design = NULL, ...,
             )
             simulationResults$allocationRatioPlanned <- NA_real_
         }
-        simulationResults$.setParameterType("allocationRatioPlanned", C_PARAM_NOT_APPLICABLE)
+        simulationResults$.setParameterType("allocationRatioPlanned", rpact:::C_PARAM_NOT_APPLICABLE)
 
         if (!is.na(pi2)) {
             warning("'pi2' (", pi2,
@@ -1045,33 +1022,33 @@ getSimulationRates <- function(design = NULL, ...,
             )
             simulationResults$pi2 <- NA_real_
         }
-        simulationResults$.setParameterType("pi2", C_PARAM_NOT_APPLICABLE)
+        simulationResults$.setParameterType("pi2", rpact:::C_PARAM_NOT_APPLICABLE)
     } else {
         if (any(is.na(allocationRatioPlanned))) {
-            allocationRatioPlanned <- C_ALLOCATION_RATIO_DEFAULT
+            allocationRatioPlanned <- rpact:::C_ALLOCATION_RATIO_DEFAULT
         }
         if (is.na(pi2)) {
-            pi2 <- C_PI_2_DEFAULT
+            pi2 <- rpact:::C_PI_2_DEFAULT
             simulationResults$pi2 <- pi2
-            simulationResults$.setParameterType("pi2", C_PARAM_DEFAULT_VALUE)
+            simulationResults$.setParameterType("pi2", rpact:::C_PARAM_DEFAULT_VALUE)
         }
         if (length(allocationRatioPlanned) == 1) {
             allocationRatioPlanned <- rep(allocationRatioPlanned, design$kMax)
         } else if (length(allocationRatioPlanned) != design$kMax) {
             stop(
-                C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
-                "'allocationRatioPlanned' (", .arrayToString(allocationRatioPlanned), ") ",
+                rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
+                "'allocationRatioPlanned' (", rpact:::.arrayToString(allocationRatioPlanned), ") ",
                 "must have length 1 or ", design$kMax, " (kMax)"
             )
         }
         
         if (length(unique(allocationRatioPlanned)) == 1) {
-            .setValueAndParameterType(
+            rpact:::.setValueAndParameterType(
                 simulationResults, "allocationRatioPlanned",
                 allocationRatioPlanned[1], defaultValue = 1
             )
         } else {
-            .setValueAndParameterType(
+            rpact:::.setValueAndParameterType(
                 simulationResults, "allocationRatioPlanned",
                 allocationRatioPlanned, defaultValue = rep(1, design$kMax)
             )
@@ -1090,57 +1067,57 @@ getSimulationRates <- function(design = NULL, ...,
     simulationResults$effect <- effect
     simulationResults$.setParameterType(
         "effect",
-        ifelse(groups == 1 && thetaH0 == 0, C_PARAM_NOT_APPLICABLE, C_PARAM_GENERATED)
+        ifelse(groups == 1 && thetaH0 == 0, rpact:::C_PARAM_NOT_APPLICABLE, rpact:::C_PARAM_GENERATED)
     )
 
-    .setValueAndParameterType(simulationResults, "normalApproximation", normalApproximation, TRUE)
-    .setValueAndParameterType(simulationResults, "riskRatio", riskRatio, FALSE)
-    .setValueAndParameterType(simulationResults, "thetaH0", thetaH0, ifelse(riskRatio, 1, 0))
-    .setValueAndParameterType(simulationResults, "pi1", pi1, C_PI_1_DEFAULT)
-    .setValueAndParameterType(simulationResults, "groups", as.integer(groups), 2L)
-    .setValueAndParameterType(
+    rpact:::.setValueAndParameterType(simulationResults, "normalApproximation", normalApproximation, TRUE)
+    rpact:::.setValueAndParameterType(simulationResults, "riskRatio", riskRatio, FALSE)
+    rpact:::.setValueAndParameterType(simulationResults, "thetaH0", thetaH0, ifelse(riskRatio, 1, 0))
+    rpact:::.setValueAndParameterType(simulationResults, "pi1", pi1, rpact:::C_PI_1_DEFAULT)
+    rpact:::.setValueAndParameterType(simulationResults, "groups", as.integer(groups), 2L)
+    rpact:::.setValueAndParameterType(
         simulationResults, "plannedSubjects",
         plannedSubjects, NA_real_
     )
-    .setValueAndParameterType(
+    rpact:::.setValueAndParameterType(
         simulationResults, "directionUpper",
-        directionUpper, C_DIRECTION_UPPER_DEFAULT
+        directionUpper, rpact:::C_DIRECTION_UPPER_DEFAULT
     )
-    .setValueAndParameterType(simulationResults, "minNumberOfSubjectsPerStage",
+    rpact:::.setValueAndParameterType(simulationResults, "minNumberOfSubjectsPerStage",
         minNumberOfSubjectsPerStage, NA_real_,
         notApplicableIfNA = TRUE
     )
-    .setValueAndParameterType(simulationResults, "maxNumberOfSubjectsPerStage",
+    rpact:::.setValueAndParameterType(simulationResults, "maxNumberOfSubjectsPerStage",
         maxNumberOfSubjectsPerStage, NA_real_,
         notApplicableIfNA = TRUE
     )
-    .setValueAndParameterType(simulationResults, "conditionalPower",
+    rpact:::.setValueAndParameterType(simulationResults, "conditionalPower",
         conditionalPower, NA_real_,
         notApplicableIfNA = TRUE
     )
-    .setValueAndParameterType(simulationResults, "pi1H1",
+    rpact:::.setValueAndParameterType(simulationResults, "pi1H1",
         pi1H1, NA_real_,
         notApplicableIfNA = TRUE
     )
-    .setValueAndParameterType(simulationResults, "pi2H1", pi2H1, 0.2, notApplicableIfNA = TRUE)
-    .setValueAndParameterType(
+    rpact:::.setValueAndParameterType(simulationResults, "pi2H1", pi2H1, 0.2, notApplicableIfNA = TRUE)
+    rpact:::.setValueAndParameterType(
         simulationResults, "maxNumberOfIterations",
-        as.integer(maxNumberOfIterations), C_MAX_SIMULATION_ITERATIONS_DEFAULT
+        as.integer(maxNumberOfIterations), rpact:::C_MAX_SIMULATION_ITERATIONS_DEFAULT
     )
     simulationResults$.setParameterType("seed", ifelse(is.na(seed),
-        C_PARAM_DEFAULT_VALUE, C_PARAM_USER_DEFINED
+        rpact:::C_PARAM_DEFAULT_VALUE, rpact:::C_PARAM_USER_DEFINED
     ))
-    simulationResults$seed <- .setSeed(seed)
+    simulationResults$seed <- rpact:::.setSeed(seed)
 
-    if (.isTrialDesignGroupSequential(design)) {
+    if (rpact:::.isTrialDesignGroupSequential(design)) {
         designNumber <- 1L
-    } else if (.isTrialDesignInverseNormal(design)) {
+    } else if (rpact:::.isTrialDesignInverseNormal(design)) {
         designNumber <- 2L
-    } else if (.isTrialDesignFisher(design)) {
+    } else if (rpact:::.isTrialDesignFisher(design)) {
         designNumber <- 3L
     }
 
-    if (.isTrialDesignFisher(design)) {
+    if (rpact:::.isTrialDesignFisher(design)) {
         alpha0Vec <- design$alpha0Vec
         futilityBounds <- rep(NA_real_, design$kMax - 1)
     } else {
@@ -1148,20 +1125,18 @@ getSimulationRates <- function(design = NULL, ...,
         futilityBounds <- design$futilityBounds
     }
 
-    cppEnabled <- .getOptionalArgument("cppEnabled", ..., optionalArgumentDefaultValue = TRUE)
-    calcSubjectsFunctionList <- .getCalcSubjectsFunction(
+    calcSubjectsFunctionList <- rpact:::.getCalcSubjectsFunction(
         design = design,
         simulationResults = simulationResults,
         calcFunction = calcSubjectsFunction,
         expectedFunction = .getSimulationRatesStageSubjects,
-        cppEnabled = cppEnabled
+        cppEnabled = FALSE
     )
     calcSubjectsFunctionType <- calcSubjectsFunctionList$calcSubjectsFunctionType
     calcSubjectsFunctionR <- calcSubjectsFunctionList$calcSubjectsFunctionR
     calcSubjectsFunctionCpp <- calcSubjectsFunctionList$calcSubjectsFunctionCpp
     
-    fun <- if (cppEnabled) getSimulationRatesCpp else .getSimulationRatesLoop
-    cppResult <- fun(
+    cppResult <- .getSimulationRatesLoop(
         kMax                        = design$kMax,
         informationRates            = design$informationRates,
         criticalValues              = design$criticalValues,
@@ -1203,7 +1178,7 @@ getSimulationRates <- function(design = NULL, ...,
     simulationResults$conditionalPowerAchieved <- cppResult$conditionalPowerAchieved
 
     if (!all(is.na(simulationResults$conditionalPowerAchieved))) {
-        simulationResults$.setParameterType("conditionalPowerAchieved", C_PARAM_GENERATED)
+        simulationResults$.setParameterType("conditionalPowerAchieved", rpact:::C_PARAM_GENERATED)
     }
 
     return(simulationResults)

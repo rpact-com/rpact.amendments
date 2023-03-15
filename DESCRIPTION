@@ -1,7 +1,7 @@
 Package: rpact.amendments
 Title: rpact Amendments
 Version: 0.1.0.9001
-Date: 2023-02-23
+Date: 2023-03-13
 Authors@R: c(
     person(
     	given = "Friedrich", 
@@ -18,7 +18,8 @@ URL: https://www.rpact.com, https://github.com/rpact-com/rpact.amendments
 BugReports: https://github.com/rpact-com/rpact.amendments/issues
 Language: en-US
 Depends: 
-	R (>= 3.6.0)
+	R (>= 3.6.0),
+	rpact (>= 3.3.4)
 Imports:
 	methods,
 	stats,

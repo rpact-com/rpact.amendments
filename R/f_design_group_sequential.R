@@ -1,0 +1,2178 @@
+## |
+## |  *Group sequential design*
+## |
+## |  This file is part of the R package rpact:
+## |  Confirmatory Adaptive Clinical Trial Design and Analysis
+## |
+## |  Author: Gernot Wassmer, PhD, and Friedrich Pahlke, PhD
+## |  Licensed under "GNU Lesser General Public License" version 3
+## |  License text can be found here: https://www.r-project.org/Licenses/LGPL-3
+## |
+## |  RPACT company website: https://www.rpact.com
+## |  rpact package website: https://www.rpact.org
+## |
+## |  Contact us for information about our services: info@rpact.com
+## |
+## |  File version: $Revision: 5772 $
+## |  Last changed: $Date: 2022-02-02 11:51:51 +0100 (Mi, 02 Feb 2022) $
+## |  Last changed by: $Author: pahlke $
+## |
+
+
+.getGroupSequentialProbabilities <- function(decisionMatrix, informationRates) {
+    if (Sys.getenv("RPACT_ENGINE_CLASSIrpact:::C_R") %in% c("", "FALSE")) {
+        return(rpact:::getGroupSequentialProbabilitiesCpp(decisionMatrix, informationRates))
+    }
+
+    rpact:::.assertAreValidInformationRates(informationRates)
+
+    if (length(decisionMatrix) != nrow(decisionMatrix) * length(informationRates)) {
+        stop(sprintf(
+            paste0(
+                rpact:::C_EXCEPTION_TYPE_CONFLICTING_ARGUMENTS,
+                "length of 'decisionMatrix' (%s) must be equal to  2 x length of 'informationRates' (%s)"
+            ),
+            length(decisionMatrix), length(informationRates)
+        ))
+    }
+
+    decisionMatrix[decisionMatrix >= rpact:::C_UPPER_BOUNDS_DEFAULT] <- rpact:::C_UPPER_BOUNDS_DEFAULT
+
+    M <- rpact:::C_CONST_NEWTON_COTES * 6 + 1 # number of grid points with constant of Newton Cotes algorithm (n*6 + 1)
+    kMax <- length(informationRates) # maximum number of stages
+    probs <- matrix(NA_real_, nrow(decisionMatrix) + 1, kMax) # probability matrix output
+
+    probs[, 1] <- c(stats::pnorm(decisionMatrix[, 1]), 1)
+    if (kMax <= 1) {
+        return(probs)
+    }
+
+    epsilonVec <- informationRates
+    epsilonVec[2:kMax] <- informationRates[2:kMax] - informationRates[1:(kMax - 1)]
+
+    informationRatesSqrt <- sqrt(informationRates)
+    epsilonVecSqrt <- sqrt(epsilonVec)
+
+    if (nrow(decisionMatrix) == 2) {
+        decisionMatrix[decisionMatrix <= rpact:::C_FUTILITY_BOUNDS_DEFAULT] <- rpact:::C_FUTILITY_BOUNDS_DEFAULT
+
+        dn <- rep(NA_real_, M) # density values
+        w <- rep(NA_real_, M) # weights
+        x <- rep(NA_real_, M) # grid points
+        dn2 <- rep(NA_real_, M) # density values in recursion
+        x2 <- rep(NA_real_, M) # grid points in recursion
+
+        for (k in 2:kMax) {
+            dx <- (decisionMatrix[2, k - 1] - decisionMatrix[1, k - 1]) / (M - 1)
+            w <- c(rep(c(492, 1296, 162, 1632, 162, 1296) * dx / 840, M %/% 6), 246 * dx / 840)
+            w[1] <- 246 * dx / 840
+            x <- rep(decisionMatrix[1, k - 1], M) + (0:(M - 1)) * dx
+
+            dn <- w * .getDnormValues(x, k, informationRates, epsilonVec, x2, dn2)
+
+            # as alternative, use crossprod (x, y)
+            seq1 <- stats::pnorm((decisionMatrix[1, k] * informationRatesSqrt[k] - x *
+                informationRatesSqrt[k - 1]) / epsilonVecSqrt[k]) %*% dn
+
+            seq2 <- stats::pnorm((decisionMatrix[2, k] * informationRatesSqrt[k] - x *
+                informationRatesSqrt[k - 1]) / epsilonVecSqrt[k]) %*% dn
+
+            x2 <- x
+            dn2 <- dn
+            probs[, k] <- c(seq1, seq2, probs[2, k - 1] - probs[1, k - 1])
+        }
+    } else if (nrow(decisionMatrix) == 4) {
+        decisionMatrix[decisionMatrix <= -rpact:::C_UPPER_BOUNDS_DEFAULT] <- -rpact:::C_UPPER_BOUNDS_DEFAULT
+
+        dn <- rep(NA_real_, 2 * M) # density values
+        w <- rep(NA_real_, 2 * M) # weights
+        x <- rep(NA_real_, 2 * M) # grid points
+        dn2 <- rep(NA_real_, 2 * M) # density values in recursion
+        x2 <- rep(NA_real_, 2 * M) # grid points in recursion
+
+        for (k in 2:kMax) {
+            dx1 <- (decisionMatrix[2, k - 1] - decisionMatrix[1, k - 1]) / (M - 1)
+            w1 <- c(rep(c(492, 1296, 162, 1632, 162, 1296) * dx1 / 840, M %/% 6), 246 * dx1 / 840)
+            w1[1] <- 246 * dx1 / 840
+            x0 <- rep(decisionMatrix[1, k - 1], M) + (0:(M - 1)) * dx1
+
+            dx2 <- (decisionMatrix[4, k - 1] - decisionMatrix[3, k - 1]) / (M - 1)
+            w2 <- c(rep(c(492, 1296, 162, 1632, 162, 1296) * dx2 / 840, M %/% 6), 246 * dx2 / 840)
+            w2[1] <- 246 * dx2 / 840
+            x1 <- rep(decisionMatrix[3, k - 1], M) + (0:(M - 1)) * dx2
+            x <- c(x0, x1)
+
+            w <- c(w1, w2)
+            dn <- w * .getDnormValues(x, k, informationRates, epsilonVec, x2, dn2)
+
+            seq1 <- stats::pnorm((decisionMatrix[1, k] * informationRatesSqrt[k] - x *
+                informationRatesSqrt[k - 1]) / epsilonVecSqrt[k]) %*% dn
+            seq2 <- stats::pnorm((decisionMatrix[2, k] * informationRatesSqrt[k] - x *
+                informationRatesSqrt[k - 1]) / epsilonVecSqrt[k]) %*% dn
+            seq3 <- stats::pnorm((decisionMatrix[3, k] * informationRatesSqrt[k] - x *
+                informationRatesSqrt[k - 1]) / epsilonVecSqrt[k]) %*% dn
+            seq4 <- stats::pnorm((decisionMatrix[4, k] * informationRatesSqrt[k] - x *
+                informationRatesSqrt[k - 1]) / epsilonVecSqrt[k]) %*% dn
+            x2 <- x
+            dn2 <- dn
+            probs[, k] <- c(seq1, seq2, seq3, seq4, probs[4, k - 1] - probs[3, k - 1] + probs[2, k - 1] - probs[1, k - 1])
+        }
+    }
+
+    .validateGroupSequentialProbabilityResultsMulti(dn = dn, dn2 = dn2, x = x, x2 = x2, w = w)
+
+    return(probs)
+}
+
+# slow R-based call
+.getDnormValues <- function(x, k, informationRates, epsilonVec, x2, dn2) {
+    return(sapply(x, .getDnormValuesSlow,
+        k = k, informationRates = informationRates,
+        epsilonVec = epsilonVec, x2 = x2, dn2 = dn2
+    ))
+}
+
+.getDnormValuesSlow <- function(x, k, informationRates, epsilonVec, x2, dn2) {
+    if (k == 2) {
+        return(stats::dnorm(x))
+    }
+
+    sum(sqrt(informationRates[k - 1] / epsilonVec[k - 1]) *
+        stats::dnorm((x * sqrt(informationRates[k - 1]) - x2 * sqrt(informationRates[k - 2])) /
+            sqrt(epsilonVec[k - 1])) * dn2)
+}
+
+.validateGroupSequentialProbabilityResultsMulti <- function(...) {
+    args <- list(...)
+    for (variableName in names(args)) {
+        if (!.validateGroupSequentialProbabilityResults(results = args[[variableName]], variableName)) {
+            return(invisible())
+        }
+    }
+}
+
+.validateGroupSequentialProbabilityResults <- function(results, variableName) {
+    numberOfNAs <- sum(is.na(results))
+    if (numberOfNAs == 0) {
+        return(TRUE)
+    }
+
+    warning(sprintf(
+        paste0(
+            rpact:::C_EXCEPTION_TYPE_RUNTIME_ISSUE,
+            "in .getGroupSequentialProbabilities(): ",
+            "variable '%s' contains %s NA's (%.1f%%)"
+        ),
+        variableName, numberOfNAs, 100 * numberOfNAs / length(results)
+    ), call. = FALSE)
+    return(FALSE)
+}
+
+.getSpendingValue <- function(alpha, x, sided, typeOfDesign, gamma = 1) {
+    if (typeOfDesign == rpact:::C_TYPE_OF_DESIGN_AS_P || typeOfDesign == rpact:::C_TYPE_OF_DESIGN_BS_P) {
+        return(alpha * log(1 + (exp(1) - 1) * x))
+    }
+
+    if (typeOfDesign == rpact:::C_TYPE_OF_DESIGN_AS_OF || typeOfDesign == rpact:::C_TYPE_OF_DESIGN_BS_OF) {
+        return(2 * sided * (1 - stats::pnorm(rpact:::.getOneMinusQNorm(alpha / (2 * sided)) / sqrt(x))))
+    }
+
+    if (typeOfDesign == rpact:::C_TYPE_OF_DESIGN_AS_KD || typeOfDesign == rpact:::C_TYPE_OF_DESIGN_BS_KD) {
+        return(alpha * x^gamma)
+    }
+
+    if (typeOfDesign == rpact:::C_TYPE_OF_DESIGN_AS_HSD || typeOfDesign == rpact:::C_TYPE_OF_DESIGN_BS_HSD) {
+        if (gamma == 0) {
+            return(alpha * x)
+        }
+
+        return(alpha * (1 - exp(-gamma * x)) / (1 - exp(-gamma)))
+    }
+
+    return(NA)
+}
+
+.getOptimumDesign <- function(deltaWT, design) {
+    scale <- rpact:::.getOneDimensionalRoot(
+        function(scale) {
+            criticalValues <- scale * design$informationRates^(deltaWT - 0.5)
+            if (design$sided == 2) {
+                decisionMatrix <- (matrix(c(-criticalValues, criticalValues), nrow = 2, byrow = TRUE))
+                probs <- .getGroupSequentialProbabilities(decisionMatrix, design$informationRates)
+                return(sum(probs[3, ] - probs[2, ] + probs[1, ]) - design$alpha)
+            } else {
+                if (design$bindingFutility) {
+                    decisionMatrix <- matrix(c(
+                        design$futilityBounds, rpact:::C_FUTILITY_BOUNDS_DEFAULT,
+                        criticalValues
+                    ), nrow = 2, byrow = TRUE)
+                } else {
+                    decisionMatrix <- matrix(c(
+                        rep(rpact:::C_FUTILITY_BOUNDS_DEFAULT, design$kMax),
+                        criticalValues
+                    ), nrow = 2, byrow = TRUE)
+                }
+                probs <- .getGroupSequentialProbabilities(decisionMatrix, design$informationRates)
+                return(sum(probs[3, ] - probs[2, ]) - design$alpha)
+            }
+        },
+        lower = 0, upper = 5, tolerance = design$tolerance, callingFunctionInformation = ".getOptimumDesign"
+    )
+
+    design$criticalValues <- scale * design$informationRates^(deltaWT - 0.5)
+    designCharacteristics <- .getDesignCharacteristics(design = design)
+
+    y <- NA_integer_
+    if (design$optimizationCriterion == rpact:::C_OPTIMIZATION_CRITERION_ASNH1) {
+        y <- designCharacteristics$averageSampleNumber1
+    }
+    if (design$optimizationCriterion == rpact:::C_OPTIMIZATION_CRITERION_ASNIFH1) {
+        y <- designCharacteristics$inflationFactor + designCharacteristics$averageSampleNumber1
+    }
+    if (design$optimizationCriterion == rpact:::C_OPTIMIZATION_CRITERION_ASN_SUM) {
+        y <- designCharacteristics$averageSampleNumber0 +
+            designCharacteristics$averageSampleNumber01 + designCharacteristics$averageSampleNumber1
+    }
+    return(y)
+}
+
+.validateTypeOfDesign <- function(design) {
+    rpact:::.assertDesignParameterExists(design, "typeOfDesign", rpact:::C_DEFAULT_TYPE_OF_DESIGN)
+
+    design$.setParameterType("userAlphaSpending", rpact:::C_PARAM_NOT_APPLICABLE)
+    design$.setParameterType("userBetaSpending", rpact:::C_PARAM_NOT_APPLICABLE)
+    design$.setParameterType("deltaWT", rpact:::C_PARAM_NOT_APPLICABLE)
+    design$.setParameterType("deltaPT1", rpact:::C_PARAM_NOT_APPLICABLE)
+    design$.setParameterType("deltaPT0", rpact:::C_PARAM_NOT_APPLICABLE)
+    design$.setParameterType("optimizationCriterion", rpact:::C_PARAM_NOT_APPLICABLE)
+    design$.setParameterType("gammaA", rpact:::C_PARAM_NOT_APPLICABLE)
+    design$.setParameterType("gammaB", rpact:::C_PARAM_NOT_APPLICABLE)
+    design$.setParameterType("typeBetaSpending", rpact:::C_PARAM_NOT_APPLICABLE)
+    design$.setParameterType("constantBoundsHP", rpact:::C_PARAM_NOT_APPLICABLE)
+
+    if (!(design$typeOfDesign %in% rpact:::.getDesignTypes())) {
+        stop(
+            rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
+            "type of design (", design$typeOfDesign, ") must be one of the following: ", rpact:::.printDesignTypes()
+        )
+    }
+
+    if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_WT) {
+        rpact:::.assertDesignParameterExists(design, "deltaWT", NA_real_)
+        rpact:::.assertIsSingleNumber(design$deltaWT, "deltaWT", naAllowed = FALSE)
+        rpact:::.assertIsInClosedInterval(design$deltaWT, "deltaWT", lower = -0.5, upper = 1)
+    } else if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_PT) {
+        rpact:::.assertDesignParameterExists(design, "deltaPT1", NA_real_)
+        rpact:::.assertIsSingleNumber(design$deltaPT1, "deltaPT1", naAllowed = FALSE)
+        rpact:::.assertIsInClosedInterval(design$deltaPT1, "deltaPT1", lower = -0.5, upper = 1)
+        rpact:::.assertDesignParameterExists(design, "deltaPT0", NA_real_)
+        rpact:::.assertIsSingleNumber(design$deltaPT0, "deltaPT0", naAllowed = FALSE)
+        rpact:::.assertIsInClosedInterval(design$deltaPT0, "deltaPT0", lower = -0.5, upper = 1)
+    } else if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_WT_OPTIMUM) {
+        rpact:::.assertDesignParameterExists(design, "optimizationCriterion", rpact:::C_OPTIMIZATION_CRITERION_DEFAULT)
+
+        if (!rpact:::.isOptimizationCriterion(design$optimizationCriterion)) {
+            stop(
+                rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
+                "optimization criterion must be one of the following: ", rpact:::.printOptimizationCriterion()
+            )
+        }
+    } else if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_HP) {
+        rpact:::.assertDesignParameterExists(design, "constantBoundsHP", rpact:::C_CONST_BOUND_HP_DEFAULT)
+        rpact:::.assertIsSingleNumber(design$constantBoundsHP, "constantBoundsHP")
+        rpact:::.assertIsInClosedInterval(design$constantBoundsHP, "constantBoundsHP", lower = 2, upper = NULL)
+    } else if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_AS_KD) {
+        rpact:::.assertDesignParameterExists(design, "gammaA", NA_real_)
+        rpact:::.assertIsSingleNumber(design$gammaA, "gammaA", naAllowed = FALSE)
+        if (design$gammaA < 0.4 || design$gammaA > 8) {
+            stop(
+                rpact:::C_EXCEPTION_TYPE_ARGUMENT_OUT_OF_BOUNDS,
+                "parameter 'gammaA' (", design$gammaA, ") for Kim & DeMets alpha ",
+                "spending function is out of bounds [0.4; 8]"
+            )
+        }
+    } else if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_AS_HSD) {
+        rpact:::.assertDesignParameterExists(design, "gammaA", NA_real_)
+        rpact:::.assertIsSingleNumber(design$gammaA, "gammaA", naAllowed = FALSE)
+        if (design$gammaA < -10 || design$gammaA > 5) {
+            stop(
+                rpact:::C_EXCEPTION_TYPE_ARGUMENT_OUT_OF_BOUNDS,
+                "Parameter 'gammaA' (", design$gammaA, ") for Hwang, Shih & DeCani ",
+                "alpha spending function is out of bounds [-10; 5]"
+            )
+        }
+    } else if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_AS_USER) {
+        rpact:::.validateUserAlphaSpending(design)
+        design$.setParameterType("userAlphaSpending", rpact:::C_PARAM_USER_DEFINED)
+    }
+
+    if (rpact:::.isUndefinedArgument(design$alpha)) {
+        design$alpha <- rpact:::C_ALPHA_DEFAULT
+        design$.setParameterType("alpha", rpact:::C_PARAM_DEFAULT_VALUE)
+    }
+
+    if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY) {
+        rpact:::.assertIsValidAlpha(design$alpha)
+        design$.setParameterType("userAlphaSpending", rpact:::C_PARAM_DEFAULT_VALUE)
+    }
+
+    if (rpact:::.isAlphaSpendingDesignType(design$typeOfDesign)) {
+        rpact:::.assertDesignParameterExists(design, "typeBetaSpending", rpact:::C_TYPE_OF_DESIGN_BS_NONE)
+
+        if (!rpact:::.isBetaSpendingDesignType(design$typeBetaSpending, noneIncluded = TRUE)) {
+            stop(
+                rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
+                "type of beta spending must be one of the following: ", rpact:::.printBetaSpendingDesignTypes()
+            )
+        }
+
+        if (design$typeBetaSpending == rpact:::C_TYPE_OF_DESIGN_BS_KD) {
+            rpact:::.assertDesignParameterExists(design, "gammaB", NA_real_)
+            rpact:::.assertIsSingleNumber(design$gammaB, "gammaB", naAllowed = FALSE)
+            if (design$gammaB < 0.4 || design$gammaB > 8) {
+                stop(
+                    rpact:::C_EXCEPTION_TYPE_ARGUMENT_OUT_OF_BOUNDS,
+                    "parameter 'gammaB' (", design$gammaB, ") for Kim & DeMets beta ",
+                    "spending function out of bounds [0.4; 8]"
+                )
+            }
+        }
+
+        if (design$typeBetaSpending == rpact:::C_TYPE_OF_DESIGN_BS_HSD) {
+            rpact:::.assertDesignParameterExists(design, "gammaB", NA_real_)
+            rpact:::.assertIsSingleNumber(design$gammaB, "gammaB", naAllowed = FALSE)
+            if (design$gammaB < -10 || design$gammaB > 5) {
+                stop(
+                    rpact:::C_EXCEPTION_TYPE_ARGUMENT_OUT_OF_BOUNDS,
+                    "parameter 'gammaB' (", design$gammaB, ") for Hwang, Shih & DeCani ",
+                    "beta spending out of bounds [-10; 5]"
+                )
+            }
+        }
+
+        if (design$typeBetaSpending == rpact:::C_TYPE_OF_DESIGN_BS_USER) {
+            rpact:::.validateUserBetaSpending(design)
+            design$.setParameterType("userBetaSpending", rpact:::C_PARAM_USER_DEFINED)
+        }
+    } else {
+        if (rpact:::.designParameterExists(design, "typeBetaSpending") && design$typeBetaSpending != rpact:::C_TYPE_OF_DESIGN_BS_NONE) {
+            warning("'typeBetaSpending' (", design$typeBetaSpending, ") will be ignored ",
+                "because 'typeOfDesign' (", design$typeOfDesign, ") is not an alpha spending design",
+                call. = FALSE
+            )
+            design$typeBetaSpending <- rpact:::C_TYPE_OF_DESIGN_BS_NONE
+            design$.setParameterType("typeBetaSpending", rpact:::C_PARAM_DEFAULT_VALUE)
+        }
+
+        if (rpact:::.designParameterExists(design, "userBetaSpending")) {
+            userBetaSpending <- NA_real_
+            warning("'userBetaSpending' (", rpact:::.arrayToString(design$userBetaSpending), ") will be ignored ",
+                "because 'typeOfDesign' (", design$typeOfDesign, ") is not an alpha spending design",
+                call. = FALSE
+            )
+        }
+    }
+
+    if (rpact:::.isUndefinedArgument(design$beta)) {
+        design$beta <- rpact:::C_BETA_DEFAULT
+        design$.setParameterType("beta", rpact:::C_PARAM_DEFAULT_VALUE)
+    }
+
+    invisible(design)
+}
+
+.validateBaseParameters <- function(design, twoSidedWarningForDefaultValues = TRUE) {
+    if (rpact:::.isDefinedArgument(design$kMax)) {
+        rpact:::.assertDesignParameterExists(design, "kMax", rpact:::C_KMAX_DEFAULT)
+        rpact:::.assertIsValidKMax(design$kMax)
+
+        if (rpact:::.isDefinedArgument(design$informationRates)) {
+            rpact:::.assertAreValidInformationRates(design$informationRates, design$kMax)
+        }
+
+        if (rpact:::.isDefinedArgument(design$futilityBounds)) {
+            rpact:::.assertAreValidFutilityBounds(design$futilityBounds, design$kMax)
+        }
+    }
+
+    rpact:::.assertDesignParameterExists(design, "sided", rpact:::C_SIDED_DEFAULT)
+    rpact:::.assertIsValidSidedParameter(design$sided)
+
+    rpact:::.setKmaxBasedOnAlphaSpendingDefintion(design)
+
+    design$informationRates <- rpact:::.getValidatedInformationRates(design)
+    design$futilityBounds <- rpact:::.getValidatedFutilityBounds(design,
+        twoSidedWarningForDefaultValues = twoSidedWarningForDefaultValues
+    )
+
+    rpact:::.assertDesignParameterExists(design, "tolerance", rpact:::C_DESIGN_TOLERANCE_DEFAULT)
+    if (design$tolerance < 1e-10 || design$tolerance > 1e-03) {
+        stop(
+            rpact:::C_EXCEPTION_TYPE_ARGUMENT_OUT_OF_BOUNDS,
+            "'tolerance' (", design$tolerance, ") out of bounds [1e-10; 1e-03]"
+        )
+    }
+
+    invisible(design)
+}
+
+.createDesign <- function(...,
+        designClass,
+        kMax = NA_integer_,
+        alpha = NA_real_,
+        beta = NA_real_,
+        sided = rpact:::C_SIDED_DEFAULT,
+        informationRates = NA_real_,
+        futilityBounds = NA_real_,
+        typeOfDesign = rpact:::C_DEFAULT_TYPE_OF_DESIGN,
+        deltaWT = NA_real_,
+        deltaPT1 = NA_real_,
+        deltaPT0 = NA_real_,
+        optimizationCriterion = rpact:::C_OPTIMIZATION_CRITERION_DEFAULT,
+        gammaA = NA_real_,
+        typeBetaSpending = rpact:::C_TYPE_OF_DESIGN_BS_NONE,
+        userAlphaSpending = NA_real_,
+        userBetaSpending = NA_real_,
+        gammaB = NA_real_,
+        bindingFutility = rpact:::C_BINDING_FUTILITY_DEFAULT,
+        constantBoundsHP = rpact:::C_CONST_BOUND_HP_DEFAULT,
+        twoSidedPower = NA,
+        tolerance = rpact:::C_DESIGN_TOLERANCE_DEFAULT) {
+    rpact:::.assertIsSingleInteger(kMax, "kMax", naAllowed = TRUE, validateType = FALSE)
+    rpact:::.assertIsSingleCharacter(typeOfDesign, "typeOfDesign")
+
+    if (typeOfDesign == rpact:::C_TYPE_OF_DESIGN_AS_USER && !any(is.na(userAlphaSpending))) {
+        if (!is.na(kMax) && kMax != length(userAlphaSpending)) {
+            stop(sprintf(
+                paste0(
+                    rpact:::C_EXCEPTION_TYPE_CONFLICTING_ARGUMENTS,
+                    "length of 'userAlphaSpending' (%s) must be equal to 'kMax' (%s)"
+                ),
+                length(userAlphaSpending), kMax
+            ))
+        }
+        kMax <- length(userAlphaSpending)
+        if (kMax > 1 && all(userAlphaSpending[1:(kMax - 1)] == 0)) {
+            message("Changed type of design to ", sQuote(rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY))
+            typeOfDesign <- rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY
+        }
+    }
+
+    if (designClass == rpact:::C_CLASS_NAME_TRIAL_DESIGN_INVERSE_NORMAL) {
+        design <- rpact:::TrialDesignInverseNormal(kMax = kMax)
+    } else if (designClass == rpact:::C_CLASS_NAME_TRIAL_DESIGN_GROUP_SEQUENTIAL) {
+        design <- rpact:::TrialDesignGroupSequential(kMax = kMax)
+    } else {
+        stop(
+            rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
+            "'designClass' ('", designClass, "') must be '", rpact:::C_CLASS_NAME_TRIAL_DESIGN_INVERSE_NORMAL, "' or ",
+            "'", rpact:::C_CLASS_NAME_TRIAL_DESIGN_GROUP_SEQUENTIAL, "'"
+        )
+    }
+
+    rpact:::.assertIsSingleInteger(sided, "sided", naAllowed = FALSE, validateType = FALSE)
+    if (!is.integer(sided) && sided %in% c(1, 2)) {
+        sided <- as.integer(sided)
+    }
+
+    rpact:::.assertIsSingleCharacter(optimizationCriterion, "optimizationCriterion")
+    rpact:::.assertIsSingleCharacter(typeBetaSpending, "typeBetaSpending")
+    rpact:::.assertIsSingleLogical(bindingFutility, "bindingFutility")
+    rpact:::.assertIsSingleLogical(twoSidedPower, "twoSidedPower", naAllowed = TRUE)
+    rpact:::.assertIsSingleNumber(alpha, "alpha", naAllowed = TRUE)
+    rpact:::.assertIsSingleNumber(beta, "beta", naAllowed = TRUE)
+    rpact:::.assertIsSingleNumber(deltaWT, "deltaWT", naAllowed = TRUE)
+    rpact:::.assertIsSingleNumber(deltaPT1, "deltaPT1", naAllowed = TRUE)
+    rpact:::.assertIsSingleNumber(deltaPT0, "deltaPT0", naAllowed = TRUE)
+    rpact:::.assertIsSingleNumber(gammaA, "gammaA", naAllowed = TRUE)
+    rpact:::.assertIsSingleNumber(gammaB, "gammaB", naAllowed = TRUE)
+    rpact:::.assertIsNumericVector(futilityBounds, "futilityBounds", naAllowed = TRUE)
+    rpact:::.assertIsNumericVector(informationRates, "informationRates", naAllowed = TRUE)
+    rpact:::.assertIsNumericVector(userAlphaSpending, "userAlphaSpending", naAllowed = TRUE)
+    rpact:::.assertIsNumericVector(userBetaSpending, "userBetaSpending", naAllowed = TRUE)
+
+    design$alpha <- alpha
+    design$beta <- beta
+    design$sided <- sided
+    design$typeOfDesign <- typeOfDesign
+    design$deltaWT <- deltaWT
+    design$deltaPT1 <- deltaPT1
+    design$deltaPT0 <- deltaPT0
+    design$gammaA <- gammaA
+    design$gammaB <- gammaB
+    design$optimizationCriterion <- optimizationCriterion
+    design$typeBetaSpending <- typeBetaSpending
+    design$futilityBounds <- futilityBounds
+    design$informationRates <- informationRates
+    design$userAlphaSpending <- userAlphaSpending
+    design$userBetaSpending <- userBetaSpending
+    design$bindingFutility <- bindingFutility
+    if (design$typeOfDesign != rpact:::C_TYPE_OF_DESIGN_WT_OPTIMUM && optimizationCriterion != rpact:::C_OPTIMIZATION_CRITERION_DEFAULT) {
+        warning(
+            "'optimizationCriterion' (", optimizationCriterion,
+            ") will be ignored because it is only applicable for 'typeOfDesign' = \"", rpact:::C_TYPE_OF_DESIGN_WT_OPTIMUM, "\""
+        )
+    }
+    if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_HP) {
+        rpact:::.assertIsSingleNumber(constantBoundsHP, "constantBoundsHP")
+        rpact:::.assertIsInClosedInterval(constantBoundsHP, "constantBoundsHP", lower = 2, upper = NULL)
+        design$constantBoundsHP <- constantBoundsHP
+    } else if (constantBoundsHP != rpact:::C_CONST_BOUND_HP_DEFAULT) {
+        warning(
+            "'constantBoundsHP' (", constantBoundsHP,
+            ") will be ignored because it is only applicable for 'typeOfDesign' = \"", rpact:::C_TYPE_OF_DESIGN_HP, "\""
+        )
+    }
+    if (is.na(twoSidedPower)) {
+        design$twoSidedPower <- rpact:::C_TWO_SIDED_POWER_DEFAULT
+        design$.setParameterType("twoSidedPower", rpact:::C_PARAM_DEFAULT_VALUE)
+    } else {
+        design$twoSidedPower <- twoSidedPower
+        design$.setParameterType("twoSidedPower", rpact:::C_PARAM_USER_DEFINED)
+    }
+
+    design$tolerance <- tolerance
+
+    return(design)
+}
+
+.getDesignGroupSequentialKMax1 <- function(design) {
+    design$criticalValues <- rpact:::.getOneMinusQNorm(design$alpha / design$sided)
+    design$alphaSpent[1] <- design$alpha
+    invisible(design)
+}
+
+#
+# Wang and Tsiatis design
+#
+.getDesignGroupSequentialWangAndTsiatis <- function(design) {
+    if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_P) {
+        design$deltaWT <- 0.5
+    } else if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_OF) {
+        design$deltaWT <- 0
+    }
+
+    scale <- rpact:::.getOneDimensionalRoot(
+        function(scale) {
+            design$criticalValues <- scale * design$informationRates^(design$deltaWT - 0.5)
+            if (design$sided == 2) {
+                decisionMatrix <- matrix(c(-design$criticalValues, design$criticalValues), nrow = 2, byrow = TRUE)
+                probs <- .getGroupSequentialProbabilities(decisionMatrix, design$informationRates)
+                return(sum(probs[3, ] - probs[2, ] + probs[1, ]) - design$alpha)
+            } else {
+                if (design$bindingFutility) {
+                    decisionMatrix <- matrix(c(
+                        design$futilityBounds, rpact:::C_FUTILITY_BOUNDS_DEFAULT,
+                        design$criticalValues
+                    ), nrow = 2, byrow = TRUE)
+                } else {
+                    decisionMatrix <- matrix(c(
+                        rep(rpact:::C_FUTILITY_BOUNDS_DEFAULT, design$kMax),
+                        design$criticalValues
+                    ), nrow = 2, byrow = TRUE)
+                }
+                probs <- .getGroupSequentialProbabilities(decisionMatrix, design$informationRates)
+                return(sum(probs[3, ] - probs[2, ]) - design$alpha)
+            }
+        },
+        lower = 0, upper = 8, tolerance = design$tolerance,
+        callingFunctionInformation = ".getDesignGroupSequentialWangAndTsiatis"
+    )
+    design$criticalValues <- scale * design$informationRates^(design$deltaWT - 0.5)
+
+    .calculateAlphaSpent(design)
+
+    invisible(design)
+}
+
+.getDesignGroupSequentialPampallonaTsiatis <- function(design) {
+    deltaPT1 <- design$deltaPT1
+    deltaPT0 <- design$deltaPT0
+    informationRates <- design$informationRates
+    kMax <- design$kMax
+
+    if (design$sided == 1) {
+        if (design$bindingFutility) {
+            prec2 <- 1
+            cLower2 <- 0
+            cUpper2 <- 10
+            while (prec2 > design$tolerance) {
+                c2m <- (cLower2 + cUpper2) / 2
+                prec1 <- 1
+                cUpper1 <- 10
+                cLower1 <- 0
+                while (prec1 > design$tolerance) {
+                    c1m <- (cLower1 + cUpper1) / 2
+                    delst <- c2m * kMax^(deltaPT0 - 0.5) + c1m * kMax^(deltaPT1 - 0.5)
+                    futilityBounds <- delst * sqrt(informationRates) - c2m *
+                        (informationRates * kMax)^(deltaPT0 - 0.5)
+                    rejectionBounds <- c1m * (informationRates * kMax)^(deltaPT1 - 0.5)
+                    futilityBounds[futilityBounds > rejectionBounds] <- rejectionBounds[futilityBounds > rejectionBounds]
+                    decisionMatrix <- matrix(c(futilityBounds, rejectionBounds), nrow = 2, byrow = TRUE)
+                    probs <- .getGroupSequentialProbabilities(decisionMatrix, informationRates)
+                    size <- sum(probs[3, ] - probs[2, ])
+                    ifelse(size < design$alpha, cUpper1 <- c1m, cLower1 <- c1m)
+                    prec1 <- cUpper1 - cLower1
+                }
+                decisionMatrixH1 <- decisionMatrix - matrix(rep(delst * sqrt(informationRates), 2),
+                    nrow = 2, byrow = TRUE
+                )
+                probs <- .getGroupSequentialProbabilities(decisionMatrixH1, informationRates)
+                power <- sum(probs[3, ] - probs[2, ])
+                ifelse(power > 1 - design$beta, cUpper2 <- c2m, cLower2 <- c2m)
+                prec2 <- cUpper2 - cLower2
+            }
+        } else {
+            prec1 <- 1
+            cUpper1 <- 10
+            cLower1 <- 0
+            while (prec1 > design$tolerance) {
+                c1m <- (cLower1 + cUpper1) / 2
+                rejectionBounds <- c1m * (informationRates * kMax)^(deltaPT1 - 0.5)
+                decisionMatrix <- matrix(c(rep(-6, kMax), rejectionBounds), nrow = 2, byrow = TRUE)
+                probs <- .getGroupSequentialProbabilities(decisionMatrix, informationRates)
+                size <- sum(probs[3, ] - probs[2, ])
+                ifelse(size < design$alpha, cUpper1 <- c1m, cLower1 <- c1m)
+                prec1 <- cUpper1 - cLower1
+            }
+            rejectionBounds <- c1m * (informationRates * kMax)^(deltaPT1 - 0.5)
+            prec2 <- 1
+            cLower2 <- 0
+            cUpper2 <- 8
+            while (prec2 > design$tolerance) {
+                c2m <- (cLower2 + cUpper2) / 2
+                delst <- c2m * kMax^(deltaPT0 - 0.5) + c1m * kMax^(deltaPT1 - 0.5)
+                futilityBounds <- delst * sqrt(informationRates) - c2m *
+                    (informationRates * kMax)^(deltaPT0 - 0.5)
+                futilityBounds[futilityBounds > rejectionBounds] <- rejectionBounds[futilityBounds > rejectionBounds]
+                decisionMatrix <- matrix(c(futilityBounds, rejectionBounds), nrow = 2, byrow = TRUE)
+                decisionMatrixH1 <- decisionMatrix - matrix(rep(delst * sqrt(informationRates), 2),
+                    nrow = 2, byrow = TRUE
+                )
+                probs <- .getGroupSequentialProbabilities(decisionMatrixH1, informationRates)
+                power <- sum(probs[3, ] - probs[2, ])
+                ifelse(power > 1 - design$beta, cUpper2 <- c2m, cLower2 <- c2m)
+                prec2 <- cUpper2 - cLower2
+            }
+        }
+        design$betaSpent <- cumsum(probs[1, ])
+        design$power <- cumsum(probs[3, ] - probs[2, ])
+
+        design$.setParameterType("betaSpent", rpact:::C_PARAM_GENERATED)
+        design$.setParameterType("power", rpact:::C_PARAM_GENERATED)
+    } else {
+        if (design$bindingFutility) {
+            prec2 <- 1
+            cLower2 <- 0
+            cUpper2 <- 8
+            while (prec2 > design$tolerance) {
+                c2m <- (cLower2 + cUpper2) / 2
+                prec1 <- 1
+                cUpper1 <- 8
+                cLower1 <- 0
+                while (prec1 > design$tolerance) {
+                    c1m <- (cLower1 + cUpper1) / 2
+                    delst <- c2m * kMax^(deltaPT0 - 0.5) + c1m * kMax^(deltaPT1 - 0.5)
+                    futilityBounds <- delst * sqrt(informationRates) - c2m *
+                        (informationRates * kMax)^(deltaPT0 - 0.5)
+                    rejectionBounds <- c1m * (informationRates * kMax)^(deltaPT1 - 0.5)
+                    futilityBounds[futilityBounds > rejectionBounds] <- rejectionBounds[futilityBounds > rejectionBounds]
+                    futilityBounds[futilityBounds < 0] <- 0
+                    decisionMatrix <- matrix(c(-rejectionBounds, -futilityBounds, futilityBounds, rejectionBounds),
+                        nrow = 4, byrow = TRUE
+                    )
+                    probs <- .getGroupSequentialProbabilities(decisionMatrix, informationRates)
+                    size <- sum(probs[5, ] - probs[4, ] + probs[1, ])
+                    ifelse(size < design$alpha, cUpper1 <- c1m, cLower1 <- c1m)
+                    prec1 <- cUpper1 - cLower1
+                }
+                decisionMatrixH1 <- decisionMatrix - matrix(rep(delst * sqrt(informationRates), 4),
+                    nrow = 4, byrow = TRUE
+                )
+                probs <- .getGroupSequentialProbabilities(decisionMatrixH1, informationRates)
+                power <- sum(probs[5, ] - probs[4, ] + probs[1, ])
+                ifelse(power > 1 - design$beta, cUpper2 <- c2m, cLower2 <- c2m)
+                prec2 <- cUpper2 - cLower2
+            }
+        } else {
+            prec1 <- 1
+            cUpper1 <- 8
+            cLower1 <- 0
+            while (prec1 > design$tolerance) {
+                c1m <- (cLower1 + cUpper1) / 2
+                rejectionBounds <- c1m * (informationRates * kMax)^(deltaPT1 - 0.5)
+                decisionMatrix <- matrix(c(-rejectionBounds, rejectionBounds), nrow = 2, byrow = TRUE)
+                probs <- .getGroupSequentialProbabilities(decisionMatrix, informationRates)
+                size <- sum(probs[3, ] - probs[2, ] + probs[1, ])
+                ifelse(size < design$alpha, cUpper1 <- c1m, cLower1 <- c1m)
+                prec1 <- cUpper1 - cLower1
+            }
+            rejectionBounds <- c1m * (informationRates * kMax)^(deltaPT1 - 0.5)
+            prec2 <- 1
+            cLower2 <- 0
+            cUpper2 <- 8
+            while (prec2 > design$tolerance) {
+                c2m <- (cLower2 + cUpper2) / 2
+                delst <- c2m * kMax^(deltaPT0 - 0.5) + c1m * kMax^(deltaPT1 - 0.5)
+                futilityBounds <- delst * sqrt(informationRates) - c2m *
+                    (informationRates * kMax)^(deltaPT0 - 0.5)
+                futilityBounds[futilityBounds > rejectionBounds] <- rejectionBounds[futilityBounds > rejectionBounds]
+                futilityBounds[futilityBounds < 0] <- 0
+                decisionMatrix <- matrix(c(-rejectionBounds, -futilityBounds, futilityBounds, rejectionBounds),
+                    nrow = 4, byrow = TRUE
+                )
+                decisionMatrixH1 <- decisionMatrix - matrix(rep(delst * sqrt(informationRates), 4),
+                    nrow = 4, byrow = TRUE
+                )
+                probs <- .getGroupSequentialProbabilities(decisionMatrixH1, informationRates)
+                power <- sum(probs[5, ] - probs[4, ] + probs[1, ])
+                ifelse(power > 1 - design$beta, cUpper2 <- c2m, cLower2 <- c2m)
+                prec2 <- cUpper2 - cLower2
+            }
+        }
+        design$betaSpent <- cumsum(probs[3, ] - probs[2, ])
+        if (design$twoSidedPower) {
+            design$power <- cumsum(probs[5, ] - probs[4, ] + probs[1, ])
+        } else {
+            design$power <- cumsum(probs[5, ] - probs[4, ])
+        }
+
+        design$.setParameterType("betaSpent", rpact:::C_PARAM_GENERATED)
+        design$.setParameterType("power", rpact:::C_PARAM_GENERATED)
+    }
+
+    design$futilityBounds <- futilityBounds[1:(design$kMax - 1)]
+    design$criticalValues <- rejectionBounds
+
+    design$.setParameterType("futilityBounds", rpact:::C_PARAM_GENERATED)
+    design$.setParameterType("criticalValues", rpact:::C_PARAM_GENERATED)
+
+    .calculateAlphaSpent(design)
+
+    design$futilityBounds[design$futilityBounds == 0] <- NA_real_
+
+    return(invisible(design))
+}
+
+.calculateAlphaSpent <- function(design) {
+    if (design$sided == 2) {
+        if (design$bindingFutility) {
+            decisionMatrix <- matrix(c(
+                -design$criticalValues, -design$futilityBounds, -rpact:::C_FUTILITY_BOUNDS_DEFAULT,
+                design$futilityBounds, rpact:::C_FUTILITY_BOUNDS_DEFAULT, design$criticalValues
+            ), nrow = 4, byrow = TRUE)
+        } else {
+            decisionMatrix <- matrix(c(-design$criticalValues, design$criticalValues), nrow = 2, byrow = TRUE)
+        }
+    } else {
+        if (design$bindingFutility) {
+            decisionMatrix <- matrix(c(
+                design$futilityBounds, rpact:::C_FUTILITY_BOUNDS_DEFAULT,
+                design$criticalValues
+            ), nrow = 2, byrow = TRUE)
+        } else {
+            decisionMatrix <- matrix(c(
+                rep(rpact:::C_FUTILITY_BOUNDS_DEFAULT, design$kMax),
+                design$criticalValues
+            ), nrow = 2, byrow = TRUE)
+        }
+    }
+    tryCatch(
+        {
+            probs <- .getGroupSequentialProbabilities(decisionMatrix, design$informationRates)
+            if (design$sided == 1) {
+                design$alphaSpent <- cumsum(probs[3, ] - probs[2, ])
+            } else if (nrow(decisionMatrix) == 2) {
+                design$alphaSpent <- cumsum(probs[3, ] - probs[2, ] + probs[1, ])
+            } else {
+                design$alphaSpent <- cumsum(probs[5, ] - probs[4, ] + probs[1, ])
+            }
+
+            if (!is.na(design$alphaSpent[design$kMax])) {
+                design$alphaSpent[design$kMax] <- floor(design$alphaSpent[design$kMax] * 1e8) / 1e8
+            }
+            design$.setParameterType("alphaSpent", rpact:::C_PARAM_GENERATED)
+        },
+        error = function(e) {
+            warning("Failed to calculate 'alphaSpent': ", e, call. = FALSE)
+        }
+    )
+}
+
+#
+# Haybittle & Peto design
+#
+.getDesignGroupSequentialHaybittleAndPeto <- function(design) {
+    scale <- rpact:::.getOneDimensionalRoot(
+        function(scale) {
+            design$criticalValues <- c(rep(design$constantBoundsHP, design$kMax - 1), scale)
+            if (design$sided == 2) {
+                decisionMatrix <- matrix(c(-design$criticalValues, design$criticalValues), nrow = 2, byrow = TRUE)
+                probs <- .getGroupSequentialProbabilities(decisionMatrix, design$informationRates)
+                return(sum(probs[3, ] - probs[2, ] + probs[1, ]) - design$alpha)
+            } else {
+                if (design$bindingFutility) {
+                    decisionMatrix <- matrix(c(
+                        design$futilityBounds, rpact:::C_FUTILITY_BOUNDS_DEFAULT,
+                        design$criticalValues
+                    ), nrow = 2, byrow = TRUE)
+                } else {
+                    decisionMatrix <- matrix(c(
+                        rep(rpact:::C_FUTILITY_BOUNDS_DEFAULT, design$kMax),
+                        design$criticalValues
+                    ), nrow = 2, byrow = TRUE)
+                }
+                probs <- .getGroupSequentialProbabilities(decisionMatrix, design$informationRates)
+                return(sum(probs[3, ] - probs[2, ]) - design$alpha)
+            }
+        },
+        lower = 0, upper = 8, tolerance = design$tolerance,
+        callingFunctionInformation = ".getDesignGroupSequentialHaybittleAndPeto"
+    )
+
+    design$criticalValues <- c(rep(design$constantBoundsHP, design$kMax - 1), scale)
+
+    .calculateAlphaSpent(design)
+
+    if (!is.na(design$criticalValues[design$kMax]) &&
+            !is.na(design$alphaSpent[design$kMax]) &&
+            (design$criticalValues[design$kMax] > 6 || abs(design$alphaSpent[design$kMax] - design$alpha) > 0.001)) {
+        stop(sprintf(
+            paste0(
+                rpact:::C_EXCEPTION_TYPE_RUNTIME_ISSUE,
+                "critical values according to the Haybittle & Peto design cannot be calculated ",
+                "(criticalValues[%s] = %s, alpha = %s)"
+            ),
+            design$kMax, design$criticalValues[design$kMax], design$alpha
+        ))
+    }
+
+    invisible(design)
+}
+
+#
+# Optimum design within Wang and Tsiatis class
+#
+.getDesignGroupSequentialWangAndTsiatisOptimum <- function(design) {
+    rpact:::.assertDesignParameterExists(design, "optimizationCriterion", rpact:::C_OPTIMIZATION_CRITERION_DEFAULT)
+    rpact:::.assertIsOptimizationCriterion(design$optimizationCriterion)
+
+    optimumDesign <- stats::optimize(.getOptimumDesign,
+        design = design,
+        interval = c(0, 1), tol = 0.001
+    )
+
+    design$deltaWT <- round(optimumDesign$minimum, 2)
+    design$.setParameterType("deltaWT", rpact:::C_PARAM_GENERATED)
+
+    # Recalculation of design characteristics with rounded design$deltaWT
+    scale <- rpact:::.getOneDimensionalRoot(
+        function(scale) {
+            design$criticalValues <- scale * design$informationRates^(design$deltaWT - 0.5)
+            if (design$sided == 2) {
+                decisionMatrix <- matrix(c(-design$criticalValues, design$criticalValues), nrow = 2, byrow = TRUE)
+                probs <- .getGroupSequentialProbabilities(decisionMatrix, design$informationRates)
+                return(sum(probs[3, ] - probs[2, ] + probs[1, ]) - design$alpha)
+            } else {
+                if (design$bindingFutility) {
+                    decisionMatrix <- matrix(c(
+                        design$futilityBounds, rpact:::C_FUTILITY_BOUNDS_DEFAULT,
+                        design$criticalValues
+                    ), nrow = 2, byrow = TRUE)
+                } else {
+                    decisionMatrix <- matrix(c(
+                        rep(rpact:::C_FUTILITY_BOUNDS_DEFAULT, design$kMax),
+                        design$criticalValues
+                    ), nrow = 2, byrow = TRUE)
+                }
+                probs <- .getGroupSequentialProbabilities(decisionMatrix, design$informationRates)
+                return(sum(probs[3, ] - probs[2, ]) - design$alpha)
+            }
+        },
+        lower = 0, upper = 5, tolerance = design$tolerance,
+        callingFunctionInformation = ".getDesignGroupSequentialWangAndTsiatisOptimum"
+    )
+
+    design$criticalValues <- scale * design$informationRates^(design$deltaWT - 0.5)
+    designCharacteristics <- .getDesignCharacteristics(design = design)
+    design$power <- designCharacteristics$power
+    design$.setParameterType("power", rpact:::C_PARAM_GENERATED)
+
+    .calculateAlphaSpent(design)
+
+    invisible(design)
+}
+
+#
+# alpha spending approaches
+#
+.getDesignGroupSequentialAlphaSpending <- function(design) {
+    design$criticalValues <- rep(NA_real_, design$kMax)
+    spendingValue <- .getSpendingValue(
+        design$alpha, design$informationRates[1], design$sided,
+        design$typeOfDesign, design$gammaA
+    )
+    if (spendingValue < 0) {
+        rpact:::.logWarn("Cannot calculate alpha spent: 'spendingValue' (%s) is < 0", spendingValue)
+        design$alphaSpent <- NA_real_
+        design$.setParameterType("alphaSpent", rpact:::C_PARAM_GENERATED)
+        return(.getDesignGroupSequentialBetaSpendingApproaches(design))
+    }
+
+    design$criticalValues[1] <- rpact:::.getOneMinusQNorm(spendingValue / design$sided)
+    for (k in 2:design$kMax) {
+        design$criticalValues[k] <- rpact:::.getOneDimensionalRoot(
+            function(scale) {
+                design$criticalValues[k] <- scale
+                if (design$sided == 2) {
+                    decisionMatrix <- matrix(c(-design$criticalValues, design$criticalValues), nrow = 2, byrow = TRUE)
+                    probs <- .getGroupSequentialProbabilities(decisionMatrix[, 1:k], design$informationRates[1:k])
+                    return(sum(probs[3, ] - probs[2, ] + probs[1, ]) - .getSpendingValue(
+                        design$alpha, design$informationRates[k],
+                        design$sided, design$typeOfDesign, design$gammaA
+                    ))
+                } else {
+                    if (design$bindingFutility) {
+                        decisionMatrix <- matrix(c(
+                            design$futilityBounds, rpact:::C_FUTILITY_BOUNDS_DEFAULT,
+                            design$criticalValues
+                        ), nrow = 2, byrow = TRUE)
+                    } else {
+                        decisionMatrix <- matrix(c(
+                            rep(rpact:::C_FUTILITY_BOUNDS_DEFAULT, design$kMax),
+                            design$criticalValues
+                        ), nrow = 2, byrow = TRUE)
+                    }
+                    probs <- .getGroupSequentialProbabilities(decisionMatrix[, 1:k], design$informationRates[1:k])
+                    return(sum(probs[3, ] - probs[2, ]) - .getSpendingValue(
+                        design$alpha, design$informationRates[k],
+                        design$sided, design$typeOfDesign, design$gammaA
+                    ))
+                }
+            },
+            lower = 0, upper = 8, tolerance = design$tolerance,
+            callingFunctionInformation = ".getDesignGroupSequentialAlphaSpending"
+        )
+    }
+
+    .calculateAlphaSpent(design)
+
+    .getDesignGroupSequentialBetaSpendingApproaches(design)
+}
+
+#
+# User defined alpha spending approach
+#
+.getDesignGroupSequentialUserDefinedAlphaSpending <- function(design) {
+    design$criticalValues <- rep(NA_real_, design$kMax)
+    if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY) {
+        design$userAlphaSpending <- rep(0, design$kMax)
+        design$userAlphaSpending[design$kMax] <- design$alpha
+        design$criticalValues[1:(design$kMax - 1)] <- rpact:::C_QNORM_THRESHOLD
+        design$criticalValues[design$kMax] <- rpact:::.getOneMinusQNorm(design$alpha / design$sided)
+    } else {
+        design$criticalValues[1] <- rpact:::.getOneMinusQNorm(design$userAlphaSpending[1] / design$sided)
+        for (k in 2:design$kMax) {
+            design$criticalValues[k] <- rpact:::.getOneDimensionalRoot(
+                function(scale) {
+                    design$criticalValues[k] <- scale
+                    if (design$sided == 2) {
+                        decisionMatrix <- matrix(c(-design$criticalValues, design$criticalValues),
+                            nrow = 2, byrow = TRUE
+                        )
+                        probs <- .getGroupSequentialProbabilities(decisionMatrix[, 1:k], design$informationRates[1:k])
+                        return(sum(probs[3, ] - probs[2, ] + probs[1, ]) - design$userAlphaSpending[k])
+                    } else {
+                        if (design$bindingFutility) {
+                            decisionMatrix <- matrix(c(
+                                design$futilityBounds, rpact:::C_FUTILITY_BOUNDS_DEFAULT,
+                                design$criticalValues
+                            ), nrow = 2, byrow = TRUE)
+                        } else {
+                            decisionMatrix <- matrix(c(
+                                rep(rpact:::C_FUTILITY_BOUNDS_DEFAULT, design$kMax),
+                                design$criticalValues
+                            ), nrow = 2, byrow = TRUE)
+                        }
+                        probs <- .getGroupSequentialProbabilities(decisionMatrix[, 1:k], design$informationRates[1:k])
+                        return(sum(probs[3, ] - probs[2, ]) - design$userAlphaSpending[k])
+                    }
+                },
+                lower = 0, upper = 8, tolerance = design$tolerance,
+                callingFunctionInformation = ".getDesignGroupSequentialUserDefinedAlphaSpending"
+            )
+        }
+    }
+
+    .calculateAlphaSpent(design)
+
+    invisible(.getDesignGroupSequentialBetaSpendingApproaches(design))
+}
+
+#
+# Only for alpha spending approaches
+#
+.getDesignGroupSequentialBetaSpendingApproaches <- function(design) {
+    # beta spending approaches (additional to alpha spending)!
+    if (rpact:::.isBetaSpendingDesignType(design$typeBetaSpending,
+            userDefinedBetaSpendingIncluded = FALSE, noneIncluded = FALSE
+        )) {
+        .getDesignGroupSequentialBetaSpending(design)
+    }
+
+    # User defined beta spending
+    if (design$typeBetaSpending == rpact:::C_TYPE_OF_DESIGN_BS_USER) {
+        .getDesignGroupSequentialUserDefinedBetaSpending(design)
+    }
+
+    invisible(design)
+}
+
+#
+# Beta spending approaches (additional to alpha spending)
+# Find shift with beta spending such that last critical values coincide
+#
+.getDesignGroupSequentialBetaSpending <- function(design) {
+    # Note: calculated without rpact:::.getOneDimensionalRoot because results may not achieved in inner search
+    # Direct bisection produced reliable results (although sometimes slowly)
+
+    iteration <- design$kMax * 1000
+    cLower1 <- -4
+    cUpper1 <- 10
+    prec1 <- 1
+    futilityBounds <- rep(NA_real_, design$kMax)
+    betaSpendingValues <- rep(NA_real_, design$kMax)
+    for (k in 1:design$kMax) {
+        betaSpendingValues[k] <- .getSpendingValue(
+            design$beta, design$informationRates[k], design$sided,
+            design$typeBetaSpending, design$gammaB
+        )
+    }
+    # design$tolerance <- 1E-6
+
+    if (design$sided == 1) {
+        if (!design$bindingFutility) {
+            while (prec1 > design$tolerance) {
+                shift <- (cLower1 + cUpper1) / 2
+                futilityBounds[1] <- rpact:::.getQNorm(betaSpendingValues[1]) + sqrt(design$informationRates[1]) * shift
+                for (k in 2:design$kMax) {
+                    prec2 <- 1
+                    cLower2 <- -6
+                    cUpper2 <- 5
+                    while (prec2 > design$tolerance) {
+                        scale <- (cLower2 + cUpper2) / 2
+                        futilityBounds[k] <- scale
+                        decisionMatrix <- matrix(c(
+                            futilityBounds - sqrt(design$informationRates) * shift,
+                            design$criticalValues - sqrt(design$informationRates) * shift
+                        ), nrow = 2, byrow = TRUE)
+                        probs <- .getGroupSequentialProbabilities(decisionMatrix[, 1:k], design$informationRates[1:k])
+                        ifelse(sum(probs[1, ]) < betaSpendingValues[k], cLower2 <- scale, cUpper2 <- scale)
+                        ifelse(iteration > 0, prec2 <- cUpper2 - cLower2, prec2 <- 0)
+                        iteration <- iteration - 1
+                    }
+                }
+                ifelse(futilityBounds[design$kMax] < design$criticalValues[design$kMax], cLower1 <- shift, cUpper1 <- shift)
+                ifelse(iteration > 0, prec1 <- cUpper1 - cLower1, prec1 <- 0)
+            }
+        } else {
+            while (prec1 > design$tolerance) {
+                shift <- (cLower1 + cUpper1) / 2
+                if (design$typeOfDesign %in% c(rpact:::C_TYPE_OF_DESIGN_AS_USER, rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY)) {
+                    alphaSpendingValue <- design$userAlphaSpending[1]
+                } else {
+                    alphaSpendingValue <-
+                        .getSpendingValue(design$alpha, design$informationRates[1], design$sided, design$typeOfDesign, design$gammaA)
+                }
+                design$criticalValues[1] <- rpact:::.getOneMinusQNorm(alphaSpendingValue / design$sided)
+                futilityBounds[1] <- rpact:::.getQNorm(betaSpendingValues[1]) + sqrt(design$informationRates[1]) * shift
+
+                for (k in 2:design$kMax) {
+                    cLower2 <- 0
+                    cUpper2 <- 8
+                    prec2 <- 1
+                    while (prec2 > design$tolerance) {
+                        scale <- (cLower2 + cUpper2) / 2
+                        design$criticalValues[k] <- scale
+                        decisionMatrix <- matrix(c(futilityBounds, design$criticalValues), nrow = 2, byrow = TRUE)
+                        probs <- .getGroupSequentialProbabilities(decisionMatrix[, 1:k], design$informationRates[1:k])
+                        if (design$typeOfDesign %in% c(rpact:::C_TYPE_OF_DESIGN_AS_USER, rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY)) {
+                            ifelse(sum(probs[3, ] - probs[2, ]) > design$userAlphaSpending[k], cLower2 <- scale, cUpper2 <- scale)
+                        } else {
+                            ifelse(sum(probs[3, ] - probs[2, ]) > .getSpendingValue(
+                                design$alpha, design$informationRates[k],
+                                design$sided, design$typeOfDesign, design$gammaA
+                            ), cLower2 <- scale, cUpper2 <- scale)
+                        }
+                        ifelse(iteration > 0, prec2 <- cUpper2 - cLower2, prec2 <- 0)
+                    }
+                    cLower2 <- -6
+                    cUpper2 <- 5
+                    prec2 <- 1
+                    while (prec2 > design$tolerance) {
+                        scale <- (cLower2 + cUpper2) / 2
+                        futilityBounds[k] <- scale
+                        decisionMatrix <- matrix(
+                            c(
+                                futilityBounds - sqrt(design$informationRates) * shift,
+                                design$criticalValues - sqrt(design$informationRates) * shift
+                            ),
+                            nrow = 2, byrow = TRUE
+                        )
+                        probs <- .getGroupSequentialProbabilities(decisionMatrix[, 1:k], design$informationRates[1:k])
+                        ifelse(sum(probs[1, ]) < betaSpendingValues[k],
+                            cLower2 <- scale, cUpper2 <- scale
+                        )
+                        ifelse(iteration > 0, prec2 <- cUpper2 - cLower2, prec2 <- 0)
+                        iteration <- iteration - 1
+                    }
+                }
+                ifelse(futilityBounds[design$kMax] < design$criticalValues[design$kMax], cLower1 <- shift, cUpper1 <- shift)
+                ifelse(iteration > 0, prec1 <- cUpper1 - cLower1, prec1 <- 0)
+            }
+        }
+
+        if ((abs(futilityBounds[design$kMax] - design$criticalValues[design$kMax]) > 1e-05) || (iteration < 0)) {
+            stop(
+                rpact:::C_EXCEPTION_TYPE_RUNTIME_ISSUE, "calculation of 'betaSpent' and 'power' ",
+                "not possible due to numerical overflow"
+            )
+        }
+        decisionMatrix <- matrix(c(
+            futilityBounds - sqrt(design$informationRates) * shift,
+            design$criticalValues - sqrt(design$informationRates) * shift
+        ), nrow = 2, byrow = TRUE)
+        probs <- .getGroupSequentialProbabilities(decisionMatrix, design$informationRates)
+
+        design$betaSpent <- cumsum(probs[1, ])
+        design$power <- cumsum(probs[3, ] - probs[2, ])
+    } else {
+        if (!design$bindingFutility) {
+            while (prec1 > design$tolerance) {
+                shift <- (cLower1 + cUpper1) / 2
+                futilityBounds[1] <- rpact:::.getQNorm(betaSpendingValues[1]) + sqrt(design$informationRates[1]) * shift
+                if (futilityBounds[1] > design$criticalValues[1]) {
+                    futilityBounds[1] <- design$criticalValues[1]
+                }
+                if (futilityBounds[1] < 0) {
+                    futilityBounds[1] <- 0
+                }
+                for (k in 2:design$kMax) {
+                    prec2 <- 1
+                    cLower2 <- -6
+                    cUpper2 <- 5
+                    while (prec2 > design$tolerance) {
+                        scale <- (cLower2 + cUpper2) / 2
+                        futilityBounds[k] <- scale
+                        if (futilityBounds[k] > design$criticalValues[k]) {
+                            futilityBounds[k] <- design$criticalValues[k]
+                        }
+                        if (futilityBounds[k] < 0) {
+                            futilityBounds[k] <- 0
+                        }
+                        decisionMatrix <- matrix(
+                            c(
+                                -design$criticalValues[1:k] - sqrt(design$informationRates[1:k]) * shift,
+                                -futilityBounds[1:k] - sqrt(design$informationRates[1:k]) * shift,
+                                futilityBounds[1:k] - sqrt(design$informationRates[1:k]) * shift,
+                                design$criticalValues[1:k] - sqrt(design$informationRates[1:k]) * shift
+                            ),
+                            nrow = 4, byrow = TRUE
+                        )
+
+                        probs <- .getGroupSequentialProbabilities(decisionMatrix[, 1:k], design$informationRates[1:k])
+                        ifelse(sum(probs[3, ] - probs[2, ]) < betaSpendingValues[k], cLower2 <- scale, cUpper2 <- scale)
+                        ifelse(iteration > 0, prec2 <- cUpper2 - cLower2, prec2 <- 0)
+                        iteration <- iteration - 1
+                    }
+                }
+                ifelse(futilityBounds[design$kMax] < design$criticalValues[design$kMax], cLower1 <- shift, cUpper1 <- shift)
+                ifelse(iteration > 0, prec1 <- cUpper1 - cLower1, prec1 <- 0)
+            }
+        } else {
+            while (prec1 > design$tolerance) {
+                shift <- (cLower1 + cUpper1) / 2
+                if (design$typeOfDesign %in% c(rpact:::C_TYPE_OF_DESIGN_AS_USER, rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY)) {
+                    alphaSpendingValue <- design$userAlphaSpending[1]
+                } else {
+                    alphaSpendingValue <-
+                        .getSpendingValue(design$alpha, design$informationRates[1], design$sided, design$typeOfDesign, design$gammaA)
+                }
+                design$criticalValues[1] <- rpact:::.getOneMinusQNorm(alphaSpendingValue / 2)
+                futilityBounds[1] <- rpact:::.getQNorm(betaSpendingValues[1]) + sqrt(design$informationRates[1]) * shift
+                if (futilityBounds[1] > design$criticalValues[1]) {
+                    futilityBounds[1] <- design$criticalValues[1]
+                }
+                if (futilityBounds[1] < 0) {
+                    futilityBounds[1] <- 0
+                }
+                for (k in 2:design$kMax) {
+                    cLower2 <- 0
+                    cUpper2 <- 8
+                    prec2 <- 1
+                    futilityBounds[k] <- 0 # dummy futility for first run
+                    while (prec2 > design$tolerance) {
+                        scale <- (cLower2 + cUpper2) / 2
+                        design$criticalValues[k] <- scale
+                        if (futilityBounds[k] > design$criticalValues[k]) {
+                            futilityBounds[k] <- design$criticalValues[k]
+                        }
+                        if (futilityBounds[k] < 0) {
+                            futilityBounds[k] <- 0
+                        }
+                        decisionMatrix <- matrix(c(
+                            -design$criticalValues[1:k], -futilityBounds[1:k],
+                            futilityBounds[1:k], design$criticalValues[1:k]
+                        ), nrow = 4, byrow = TRUE)
+
+                        probs <- .getGroupSequentialProbabilities(decisionMatrix[, 1:k], design$informationRates[1:k])
+
+                        if (design$typeOfDesign %in% c(rpact:::C_TYPE_OF_DESIGN_AS_USER, rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY)) {
+                            ifelse(sum(probs[5, ] - probs[4, ] + probs[1, ]) > design$userAlphaSpending[k], cLower2 <- scale, cUpper2 <- scale)
+                        } else {
+                            ifelse(sum(probs[5, ] - probs[4, ] + probs[1, ]) > .getSpendingValue(
+                                design$alpha, design$informationRates[k],
+                                design$sided, design$typeOfDesign, design$gammaA
+                            ), cLower2 <- scale, cUpper2 <- scale)
+                        }
+                        ifelse(iteration > 0, prec2 <- cUpper2 - cLower2, prec2 <- 0)
+                    }
+                    cLower2 <- -6
+                    cUpper2 <- 5
+                    prec2 <- 1
+                    while (prec2 > design$tolerance) {
+                        scale <- (cLower2 + cUpper2) / 2
+                        futilityBounds[k] <- scale
+                        if (futilityBounds[k] > design$criticalValues[k]) {
+                            futilityBounds[k] <- design$criticalValues[k]
+                        }
+                        if (futilityBounds[k] < 0) {
+                            futilityBounds[k] <- 0
+                        }
+                        decisionMatrix <- matrix(
+                            c(
+                                -design$criticalValues[1:k] - sqrt(design$informationRates[1:k]) * shift,
+                                -futilityBounds[1:k] - sqrt(design$informationRates[1:k]) * shift,
+                                futilityBounds[1:k] - sqrt(design$informationRates[1:k]) * shift,
+                                design$criticalValues[1:k] - sqrt(design$informationRates[1:k]) * shift
+                            ),
+                            nrow = 4, byrow = TRUE
+                        )
+
+                        probs <- .getGroupSequentialProbabilities(decisionMatrix[, 1:k], design$informationRates[1:k])
+
+                        ifelse(sum(probs[3, ] - probs[2, ]) < betaSpendingValues[k], cLower2 <- scale, cUpper2 <- scale)
+                        ifelse(iteration > 0, prec2 <- cUpper2 - cLower2, prec2 <- 0)
+                        iteration <- iteration - 1
+                    }
+                }
+                ifelse(futilityBounds[design$kMax] < design$criticalValues[design$kMax], cLower1 <- shift, cUpper1 <- shift)
+                ifelse(iteration > 0, prec1 <- cUpper1 - cLower1, prec1 <- 0)
+            }
+            decisionMatrixH0 <- matrix(c(
+                -design$criticalValues, -futilityBounds,
+                futilityBounds, design$criticalValues
+            ), nrow = 4, byrow = TRUE)
+            # decisionMatrixH0[2, decisionMatrixH0[2,] > 0] <- 0
+            # decisionMatrixH0[3, decisionMatrixH0[3,] < 0] <- 0
+            probsH0 <- .getGroupSequentialProbabilities(decisionMatrixH0, design$informationRates)
+            design$alphaSpent <- cumsum(probsH0[5, ] - probsH0[4, ] + probsH0[1, ])
+        }
+
+        if ((abs(futilityBounds[design$kMax] - design$criticalValues[design$kMax]) > 1e-05) || (iteration < 0)) {
+            stop(
+                rpact:::C_EXCEPTION_TYPE_RUNTIME_ISSUE, "calculation of 'betaSpent' and 'power' ",
+                "not possible due to numerical overflow"
+            )
+        }
+
+        decisionMatrix <- matrix(c(
+            -design$criticalValues - sqrt(design$informationRates) * shift,
+            -futilityBounds - sqrt(design$informationRates) * shift,
+            futilityBounds - sqrt(design$informationRates) * shift,
+            design$criticalValues - sqrt(design$informationRates) * shift
+        ), nrow = 4, byrow = TRUE)
+
+        probs <- .getGroupSequentialProbabilities(decisionMatrix, design$informationRates)
+
+        design$betaSpent <- cumsum(probs[3, ] - probs[2, ])
+        if (design$twoSidedPower) {
+            design$power <- cumsum(probs[5, ] - probs[4, ] + probs[1, ])
+        } else {
+            design$power <- cumsum(probs[5, ] - probs[4, ])
+        }
+        futilityBounds[futilityBounds <= 0] <- NA_real_
+    }
+
+    design$.setParameterType("betaSpent", rpact:::C_PARAM_GENERATED)
+    design$.setParameterType("power", rpact:::C_PARAM_GENERATED)
+    design$futilityBounds <- futilityBounds[1:(design$kMax - 1)]
+    design$.setParameterType("futilityBounds", rpact:::C_PARAM_GENERATED)
+
+    invisible(design)
+}
+
+
+#
+# User defined beta spending.
+#
+# Find shift with beta spending such that last critical values coincide
+#
+.getDesignGroupSequentialUserDefinedBetaSpending <- function(design) {
+    # Note: calculated without rpact:::.getOneDimensionalRoot because results may not achieved in inner search
+    # Direct bisection produced reliable results (although sometimes slowly)
+
+    if (design$typeBetaSpending != rpact:::C_TYPE_OF_DESIGN_BS_USER) {
+        stop(
+            rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
+            "'typeBetaSpending' ('", design$typeBetaSpending, "') must be '", rpact:::C_TYPE_OF_DESIGN_BS_USER, "'"
+        )
+    }
+    if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY) {
+        design$userAlphaSpending <- rep(0, design$kMax)
+        design$userAlphaSpending[design$kMax] <- design$alpha
+        design$criticalValues[1:(design$kMax - 1)] <- rpact:::C_QNORM_THRESHOLD
+        design$criticalValues[design$kMax] <- rpact:::.getOneMinusQNorm(design$alpha / design$sided)
+    }
+
+    iteration <- design$kMax * 1000
+    cLower1 <- -4
+    cUpper1 <- 10
+    prec1 <- 1
+    futilityBounds <- rep(NA_real_, design$kMax)
+
+    if (!design$bindingFutility) {
+        while (prec1 > design$tolerance) {
+            shift <- (cLower1 + cUpper1) / 2
+            futilityBounds[1] <- rpact:::.getQNorm(design$userBetaSpending[1]) + sqrt(design$informationRates[1]) * shift
+            for (k in 2:design$kMax) {
+                prec2 <- 1
+                cLower2 <- -6
+                cUpper2 <- 5
+                while (prec2 > design$tolerance) {
+                    scale <- (cLower2 + cUpper2) / 2
+                    futilityBounds[k] <- scale
+                    decisionMatrix <- matrix(c(
+                        futilityBounds - sqrt(design$informationRates) * shift,
+                        design$criticalValues - sqrt(design$informationRates) * shift
+                    ), nrow = 2, byrow = TRUE)
+                    probs <- .getGroupSequentialProbabilities(decisionMatrix[, 1:k], design$informationRates[1:k])
+                    ifelse(sum(probs[1, ]) < design$userBetaSpending[k], cLower2 <- scale, cUpper2 <- scale)
+                    ifelse(iteration > 0, prec2 <- cUpper2 - cLower2, prec2 <- 0)
+                    iteration <- iteration - 1
+                }
+            }
+            ifelse(futilityBounds[design$kMax] < design$criticalValues[design$kMax], cLower1 <- shift, cUpper1 <- shift)
+            ifelse(iteration > 0, prec1 <- cUpper1 - cLower1, prec1 <- 0)
+        }
+    } else {
+        iteration <- design$kMax * 1000 * 3
+        while (prec1 > design$tolerance) {
+            shift <- (cLower1 + cUpper1) / 2
+            if (design$typeOfDesign %in% c(rpact:::C_TYPE_OF_DESIGN_AS_USER, rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY)) {
+                alphaSpendingValue <- design$userAlphaSpending[1]
+            } else {
+                alphaSpendingValue <- .getSpendingValue(
+                    design$alpha,
+                    design$informationRates[1], design$sided, design$typeOfDesign, design$gammaA
+                )
+            }
+            if (design$typeOfDesign != rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY) {
+                design$criticalValues[1] <- rpact:::.getOneMinusQNorm(alphaSpendingValue / design$sided)
+            }
+            futilityBounds[1] <- rpact:::.getQNorm(design$userBetaSpending[1]) + sqrt(design$informationRates[1]) * shift
+
+            for (k in 2:design$kMax) {
+                if (design$typeOfDesign != rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY) {
+                    cLower2 <- 0
+                    cUpper2 <- 8
+                    prec2 <- 1
+                    while (prec2 > design$tolerance) {
+                        scale <- (cLower2 + cUpper2) / 2
+                        design$criticalValues[k] <- scale
+                        decisionMatrix <- matrix(c(futilityBounds, design$criticalValues), nrow = 2, byrow = TRUE)
+                        probs <- .getGroupSequentialProbabilities(decisionMatrix[, 1:k], design$informationRates[1:k])
+                        if (design$typeOfDesign %in% c(rpact:::C_TYPE_OF_DESIGN_AS_USER, rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY)) {
+                            ifelse(sum(probs[3, ] - probs[2, ]) > design$userAlphaSpending[k], cLower2 <- scale, cUpper2 <- scale)
+                        } else {
+                            ifelse(sum(probs[3, ] - probs[2, ]) > .getSpendingValue(
+                                design$alpha, design$informationRates[k],
+                                design$sided, design$typeOfDesign, design$gammaA
+                            ), cLower2 <- scale, cUpper2 <- scale)
+                        }
+                        ifelse(iteration > 0, prec2 <- cUpper2 - cLower2, prec2 <- 0)
+                        iteration <- iteration - 1
+                    }
+                }
+
+                cLower2 <- -6
+                cUpper2 <- 5
+                prec2 <- 1
+                while (prec2 > design$tolerance) {
+                    scale <- (cLower2 + cUpper2) / 2
+                    futilityBounds[k] <- scale
+                    decisionMatrix <- matrix(c(
+                        futilityBounds - sqrt(design$informationRates) * shift,
+                        design$criticalValues - sqrt(design$informationRates) * shift
+                    ), nrow = 2, byrow = TRUE)
+                    probs <- .getGroupSequentialProbabilities(decisionMatrix[, 1:k], design$informationRates[1:k])
+                    ifelse(sum(probs[1, ]) < design$userBetaSpending[k], cLower2 <- scale, cUpper2 <- scale)
+                    ifelse(iteration > 0, prec2 <- cUpper2 - cLower2, prec2 <- 0)
+                    iteration <- iteration - 1
+                }
+            }
+            ifelse(futilityBounds[design$kMax] < design$criticalValues[design$kMax], cLower1 <- shift, cUpper1 <- shift)
+            ifelse(iteration > 0, prec1 <- cUpper1 - cLower1, prec1 <- 0)
+            iteration <- iteration - 1
+        }
+    }
+
+    if ((abs(futilityBounds[design$kMax] - design$criticalValues[design$kMax]) > 1e-05) || (iteration < 0)) {
+        stop(
+            rpact:::C_EXCEPTION_TYPE_RUNTIME_ISSUE, "calculation of 'betaSpent' and 'power' ",
+            "not possible due to numerical overflow"
+        )
+    }
+    decisionMatrix <- matrix(c(
+        futilityBounds - sqrt(design$informationRates) * shift,
+        design$criticalValues - sqrt(design$informationRates) * shift
+    ), nrow = 2, byrow = TRUE)
+    probs <- .getGroupSequentialProbabilities(decisionMatrix, design$informationRates)
+    design$betaSpent <- cumsum(probs[1, ])
+    design$power <- cumsum(probs[3, ] - probs[2, ])
+    design$.setParameterType("betaSpent", rpact:::C_PARAM_GENERATED)
+    design$.setParameterType("power", rpact:::C_PARAM_GENERATED)
+    design$futilityBounds <- futilityBounds[1:(design$kMax - 1)]
+    design$.setParameterType("futilityBounds", rpact:::C_PARAM_GENERATED)
+    invisible(design)
+}
+
+
+#'
+#' @title
+#' Get Design Inverse Normal
+#'
+#' @description
+#' Provides adjusted boundaries and defines a group sequential design for its use in
+#' the inverse normal combination test.
+#'
+#' @inheritParams deprecated_getDesignGroupSequential
+#'
+#' @export
+#'
+deprecated_getDesignInverseNormal <- function(...,
+        kMax = NA_integer_,
+        alpha = NA_real_,
+        beta = NA_real_,
+        sided = 1, # rpact:::C_SIDED_DEFAULT
+        informationRates = NA_real_,
+        futilityBounds = NA_real_,
+        typeOfDesign = c("OF", "P", "WT", "PT", "HP", "WToptimum", "asP", "asOF", "asKD", "asHSD", "asUser", "noEarlyEfficacy"), # rpact:::C_DEFAULT_TYPE_OF_DESIGN,
+        deltaWT = NA_real_,
+        deltaPT1 = NA_real_,
+        deltaPT0 = NA_real_,
+        optimizationCriterion = c("ASNH1", "ASNIFH1", "ASNsum"), # rpact:::C_OPTIMIZATION_CRITERION_DEFAULT
+        gammaA = NA_real_,
+        typeBetaSpending = c("none", "bsP", "bsOF", "bsKD", "bsHSD", "bsUser"), # rpact:::C_TYPE_OF_DESIGN_BS_NONE
+        userAlphaSpending = NA_real_,
+        userBetaSpending = NA_real_,
+        gammaB = NA_real_,
+        bindingFutility = NA,
+        constantBoundsHP = 3, # rpact:::C_CONST_BOUND_HP_DEFAULT,
+        twoSidedPower = NA,
+        tolerance = 1e-08 # rpact:::C_DESIGN_TOLERANCE_DEFAULT
+        ) {
+    rpact:::.warnInCaseOfUnknownArguments(functionName = "getDesignInverseNormal", ...)
+
+    return(.getDesignGroupSequential(
+        designClass = rpact:::C_CLASS_NAME_TRIAL_DESIGN_INVERSE_NORMAL,
+        kMax = kMax,
+        alpha = alpha,
+        beta = beta,
+        sided = sided,
+        informationRates = informationRates,
+        futilityBounds = futilityBounds,
+        typeOfDesign = typeOfDesign,
+        deltaWT = deltaWT,
+        deltaPT1 = deltaPT1,
+        deltaPT0 = deltaPT0,
+        optimizationCriterion = optimizationCriterion,
+        gammaA = gammaA,
+        typeBetaSpending = typeBetaSpending,
+        userAlphaSpending = userAlphaSpending,
+        userBetaSpending = userBetaSpending,
+        gammaB = gammaB,
+        bindingFutility = bindingFutility,
+        constantBoundsHP = constantBoundsHP,
+        twoSidedPower = twoSidedPower,
+        tolerance = tolerance,
+        userFunctionCallEnabled = TRUE
+    ))
+}
+
+.getDesignInverseNormal <- function(...,
+        kMax = NA_integer_,
+        alpha = NA_real_,
+        beta = NA_real_,
+        sided = rpact:::C_SIDED_DEFAULT,
+        informationRates = NA_real_,
+        futilityBounds = NA_real_,
+        typeOfDesign = rpact:::C_DEFAULT_TYPE_OF_DESIGN,
+        deltaWT = NA_real_,
+        deltaPT1 = NA_real_,
+        deltaPT0 = NA_real_,
+        optimizationCriterion = rpact:::C_OPTIMIZATION_CRITERION_DEFAULT,
+        gammaA = NA_real_,
+        typeBetaSpending = rpact:::C_TYPE_OF_DESIGN_BS_NONE,
+        userAlphaSpending = NA_real_,
+        userBetaSpending = NA_real_,
+        gammaB = NA_real_,
+        bindingFutility = NA,
+        constantBoundsHP = rpact:::C_CONST_BOUND_HP_DEFAULT,
+        twoSidedPower = NA,
+        tolerance = rpact:::C_DESIGN_TOLERANCE_DEFAULT) {
+    rpact:::.warnInCaseOfUnknownArguments(functionName = "getDesignInverseNormal", ...)
+
+    return(.getDesignGroupSequential(
+        designClass = rpact:::C_CLASS_NAME_TRIAL_DESIGN_INVERSE_NORMAL,
+        kMax = kMax,
+        alpha = alpha,
+        beta = beta,
+        sided = sided,
+        informationRates = informationRates,
+        futilityBounds = futilityBounds,
+        typeOfDesign = typeOfDesign,
+        deltaWT = deltaWT,
+        deltaPT1 = deltaPT1,
+        deltaPT0 = deltaPT0,
+        optimizationCriterion = optimizationCriterion,
+        gammaA = gammaA,
+        typeBetaSpending = typeBetaSpending,
+        userAlphaSpending = userAlphaSpending,
+        userBetaSpending = userBetaSpending,
+        gammaB = gammaB,
+        bindingFutility = bindingFutility,
+        constantBoundsHP = constantBoundsHP,
+        twoSidedPower = twoSidedPower,
+        tolerance = tolerance,
+        userFunctionCallEnabled = FALSE
+    ))
+}
+
+.getDesignGroupSequentialDefaultValues <- function() {
+    return(list(
+        kMax = NA_integer_,
+        alpha = NA_real_,
+        beta = NA_real_,
+        sided = rpact:::C_SIDED_DEFAULT,
+        informationRates = NA_real_,
+        futilityBounds = NA_real_,
+        typeOfDesign = rpact:::C_DEFAULT_TYPE_OF_DESIGN,
+        deltaWT = NA_real_,
+        deltaPT1 = NA_real_,
+        deltaPT0 = NA_real_,
+        optimizationCriterion = rpact:::C_OPTIMIZATION_CRITERION_DEFAULT,
+        gammaA = NA_real_,
+        typeBetaSpending = rpact:::C_TYPE_OF_DESIGN_BS_NONE,
+        userAlphaSpending = NA_real_,
+        userBetaSpending = NA_real_,
+        gammaB = NA_real_,
+        twoSidedPower = rpact:::C_TWO_SIDED_POWER_DEFAULT,
+        tolerance = rpact:::C_DESIGN_TOLERANCE_DEFAULT
+    ))
+}
+
+.getDesignInverseNormalDefaultValues <- function() {
+    return(.getDesignGroupSequentialDefaultValues())
+}
+
+#
+# Param: userFunctionCallEnabled if \code{TRUE}, additional parameter validation methods will be called.
+#
+.getDesignGroupSequential <- function(...,
+        designClass = rpact:::C_CLASS_NAME_TRIAL_DESIGN_GROUP_SEQUENTIAL,
+        kMax = NA_integer_,
+        alpha = NA_real_,
+        beta = NA_real_,
+        sided = rpact:::C_SIDED_DEFAULT,
+        informationRates = NA_real_,
+        futilityBounds = NA_real_,
+        typeOfDesign = rpact:::C_DEFAULT_TYPE_OF_DESIGN,
+        deltaWT = NA_real_,
+        deltaPT1 = NA_real_,
+        deltaPT0 = NA_real_,
+        optimizationCriterion = rpact:::C_OPTIMIZATION_CRITERION_DEFAULT,
+        gammaA = NA_real_,
+        typeBetaSpending = rpact:::C_TYPE_OF_DESIGN_BS_NONE,
+        userAlphaSpending = NA_real_,
+        userBetaSpending = NA_real_,
+        gammaB = NA_real_,
+        bindingFutility = rpact:::C_BINDING_FUTILITY_DEFAULT,
+        constantBoundsHP = rpact:::C_CONST_BOUND_HP_DEFAULT,
+        twoSidedPower = NA,
+        tolerance = rpact:::C_DESIGN_TOLERANCE_DEFAULT,
+        userFunctionCallEnabled = FALSE) {
+    typeOfDesign <- rpact:::.matchArgument(typeOfDesign, rpact:::C_DEFAULT_TYPE_OF_DESIGN)
+    optimizationCriterion <- rpact:::.matchArgument(optimizationCriterion, rpact:::C_OPTIMIZATION_CRITERION_DEFAULT)
+    typeBetaSpending <- rpact:::.matchArgument(typeBetaSpending, rpact:::C_TYPE_OF_DESIGN_BS_NONE)
+
+    if (rpact:::.isDefinedArgument(kMax, argumentExistsValidationEnabled = userFunctionCallEnabled)) {
+        rpact:::.assertIsValidKMax(kMax, showWarnings = TRUE)
+        if (!is.integer(kMax)) {
+            kMax <- as.integer(kMax)
+        }
+    }
+
+    if (is.na(bindingFutility)) {
+        bindingFutility <- rpact:::C_BINDING_FUTILITY_DEFAULT
+    } else if (userFunctionCallEnabled && typeOfDesign != rpact:::C_TYPE_OF_DESIGN_PT &&
+            !(typeBetaSpending == "bsP" || typeBetaSpending == "bsOF" || typeBetaSpending == "bsKD" ||
+                typeBetaSpending == "bsHSD" || typeBetaSpending == "bsUser") &&
+            ((!is.na(kMax) && kMax == 1) || any(is.na(futilityBounds)) ||
+                (!any(is.na(futilityBounds)) && all(futilityBounds == rpact:::C_FUTILITY_BOUNDS_DEFAULT)))) {
+        warning("'bindingFutility' (", bindingFutility, ") will be ignored", call. = FALSE)
+    }
+
+    design <- .createDesign(
+        designClass = designClass,
+        kMax = kMax,
+        alpha = alpha,
+        beta = beta,
+        sided = sided,
+        informationRates = informationRates,
+        futilityBounds = futilityBounds,
+        typeOfDesign = typeOfDesign,
+        deltaWT = deltaWT,
+        deltaPT1 = deltaPT1,
+        deltaPT0 = deltaPT0,
+        optimizationCriterion = optimizationCriterion,
+        gammaA = gammaA,
+        typeBetaSpending = typeBetaSpending,
+        userAlphaSpending = userAlphaSpending,
+        userBetaSpending = userBetaSpending,
+        gammaB = gammaB,
+        bindingFutility = bindingFutility,
+        constantBoundsHP = constantBoundsHP,
+        twoSidedPower = twoSidedPower,
+        tolerance = tolerance
+    )
+
+    if (userFunctionCallEnabled) {
+        .validateBaseParameters(design, twoSidedWarningForDefaultValues = FALSE)
+        .validateTypeOfDesign(design)
+
+        rpact:::.assertIsValidTolerance(tolerance)
+        rpact:::.assertDesignParameterExists(design, "alpha", rpact:::C_ALPHA_DEFAULT)
+        rpact:::.assertDesignParameterExists(design, "beta", rpact:::C_BETA_DEFAULT)
+        rpact:::.assertDesignParameterExists(design, "sided", rpact:::C_SIDED_DEFAULT)
+        rpact:::.assertDesignParameterExists(design, "typeOfDesign", rpact:::C_DEFAULT_TYPE_OF_DESIGN)
+        rpact:::.assertDesignParameterExists(design, "bindingFutility", rpact:::C_BINDING_FUTILITY_DEFAULT)
+        rpact:::.assertDesignParameterExists(design, "tolerance", rpact:::C_DESIGN_TOLERANCE_DEFAULT)
+
+        if (typeOfDesign != rpact:::C_TYPE_OF_DESIGN_PT) {
+            if (!is.na(deltaPT1)) {
+                warning("'deltaPT1' (", deltaPT1, ") will be ignored", call. = FALSE)
+            }
+            if (!is.na(deltaPT0)) {
+                warning("'deltaPT0' (", deltaPT0, ") will be ignored", call. = FALSE)
+            }
+        }
+        if (typeOfDesign != rpact:::C_TYPE_OF_DESIGN_WT && !is.na(deltaWT)) {
+            warning("'deltaWT' (", deltaWT, ") will be ignored", call. = FALSE)
+        }
+        if (typeOfDesign != rpact:::C_TYPE_OF_DESIGN_AS_KD &&
+                typeOfDesign != rpact:::C_TYPE_OF_DESIGN_AS_HSD && !is.na(gammaA)) {
+            warning("'gammaA' (", gammaA, ") will be ignored", call. = FALSE)
+        }
+        if (typeBetaSpending != rpact:::C_TYPE_OF_DESIGN_BS_KD &&
+                typeBetaSpending != rpact:::C_TYPE_OF_DESIGN_BS_HSD && !is.na(gammaB)) {
+            warning("'gammaB' (", gammaB, ") will be ignored", call. = FALSE)
+        }
+        if (typeBetaSpending != rpact:::C_TYPE_OF_DESIGN_BS_USER && !is.na(userBetaSpending)) {
+            warning("'userBetaSpending' (", rpact:::.arrayToString(userBetaSpending), ") will be ignored", call. = FALSE)
+        }
+        if (!(typeOfDesign %in% c(rpact:::C_TYPE_OF_DESIGN_AS_USER, rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY)) &&
+                !all(is.na(userAlphaSpending))) {
+            warning("'userAlphaSpending' (", rpact:::.arrayToString(userAlphaSpending), ") will be ignored", call. = FALSE)
+        }
+    }
+
+    if (design$sided == 2 && design$bindingFutility && !design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_PT &&
+            !rpact:::.isBetaSpendingDesignType(design$typeBetaSpending)) {
+        design$bindingFutility <- FALSE
+    }
+
+    if (design$sided == 1 && design$twoSidedPower) {
+        warning("'twoSidedPower' will be ignored because the test is defined as one-sided", call. = FALSE)
+        design$twoSidedPower <- FALSE
+    }
+
+    if (userFunctionCallEnabled) {
+        rpact:::.validateAlphaAndBeta(design)
+    }
+
+    design$alphaSpent <- rep(NA_real_, design$kMax)
+    design$betaSpent <- rep(NA_real_, design$kMax)
+    design$power <- rep(NA_real_, design$kMax)
+
+    if (userFunctionCallEnabled) {
+        design$.setParameterType("betaSpent", rpact:::C_PARAM_NOT_APPLICABLE)
+        design$.setParameterType("power", rpact:::C_PARAM_NOT_APPLICABLE)
+        design$.setParameterType("alphaSpent", rpact:::C_PARAM_NOT_APPLICABLE)
+        design$.setParameterType("criticalValues", rpact:::C_PARAM_GENERATED)
+    }
+
+    if (design$kMax == 1) {
+        .getDesignGroupSequentialKMax1(design)
+    } else {
+        # Wang and Tsiatis design
+        if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_WT ||
+                design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_P ||
+                design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_OF) {
+            .getDesignGroupSequentialWangAndTsiatis(design)
+        }
+
+        # Pampallona & Tsiatis design
+        else if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_PT) {
+            .getDesignGroupSequentialPampallonaTsiatis(design)
+        }
+
+        # Haybittle & Peto design
+        else if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_HP) {
+            .getDesignGroupSequentialHaybittleAndPeto(design)
+        }
+
+        # Optimum design within Wang and Tsiatis class
+        else if (design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_WT_OPTIMUM) {
+            .getDesignGroupSequentialWangAndTsiatisOptimum(design)
+        }
+
+        # alpha spending approaches
+        else if (rpact:::.isAlphaSpendingDesignType(design$typeOfDesign, userDefinedAlphaSpendingIncluded = FALSE)) {
+            .getDesignGroupSequentialAlphaSpending(design)
+        }
+
+        # user defined alpha spending approach
+        else if (design$typeOfDesign %in% c(rpact:::C_TYPE_OF_DESIGN_AS_USER, rpact:::C_TYPE_OF_DESIGN_NO_EARLY_EFFICACY)) {
+            .getDesignGroupSequentialUserDefinedAlphaSpending(design)
+        }
+    }
+
+    design$stageLevels <- 1 - stats::pnorm(design$criticalValues)
+    design$.setParameterType("stageLevels", rpact:::C_PARAM_GENERATED)
+
+    if (design$kMax == 1) {
+        design$.setParameterType("futilityBounds", rpact:::C_PARAM_NOT_APPLICABLE)
+    }
+
+    if (!all(is.na(design$futilityBounds))) {
+        if (length(design$futilityBounds) == 0 || all(design$futilityBounds == rpact:::C_FUTILITY_BOUNDS_DEFAULT)) {
+            design$.setParameterType("bindingFutility", rpact:::C_PARAM_NOT_APPLICABLE)
+            design$.setParameterType("futilityBounds", rpact:::C_PARAM_NOT_APPLICABLE)
+        } else if (userFunctionCallEnabled &&
+                any(design$futilityBounds > design$criticalValues[1:(design$kMax - 1)] - 0.01, na.rm = TRUE)) {
+            stop(
+                rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
+                "'futilityBounds' (", rpact:::.arrayToString(design$futilityBounds), ") too extreme for this situation"
+            )
+        }
+    }
+
+    design$.initStages()
+
+    # we use 7.5 instead of rpact:::C_QNORM_THRESHOLD as threashold
+    design$criticalValues[!is.na(design$criticalValues) & design$criticalValues <= -7.5] <- -Inf
+    design$criticalValues[!is.na(design$criticalValues) & design$criticalValues >= 7.5] <- Inf
+
+    return(design)
+}
+
+#'
+#' @title
+#' Get Design Group Sequential
+#'
+#' @description
+#' Provides adjusted boundaries and defines a group sequential design.
+#'
+#' @param futilityBounds The futility bounds, defined on the test statistic z scale
+#'        (numeric vector of length \code{kMax - 1}).
+#' @param deltaWT Delta for Wang & Tsiatis Delta class.
+#' @param deltaPT1 Delta1 for Pampallona & Tsiatis class rejecting H0 boundaries.
+#' @param deltaPT0 Delta0 for Pampallona & Tsiatis class rejecting H1 boundaries.
+#' @param constantBoundsHP The constant bounds up to stage \code{kMax - 1} for the
+#'        Haybittle & Peto design (default is \code{3}).
+#' @param optimizationCriterion Optimization criterion for optimum design within
+#'        Wang & Tsiatis class (\code{"ASNH1"}, \code{"ASNIFH1"},
+#'        \code{"ASNsum"}), default is \code{"ASNH1"}, see details.
+#' @param typeBetaSpending Type of beta spending. Type of of beta spending is one of the following:
+#'        O'Brien & Fleming type beta spending, Pocock type beta spending,
+#'        Kim & DeMets beta spending, Hwang, Shi & DeCani beta spending, user defined
+#'        beta spending (\code{"bsOF"}, \code{"bsP"}, \code{"bsKD"},
+#'        \code{"bsHSD"}, \code{"bsUser"}, default is \code{"none"}).
+#' @param gammaA Parameter for alpha spending function.
+#' @param gammaB Parameter for beta spending function.
+#' @param userBetaSpending The user defined beta spending. Vector of length \code{kMax} containing the cumulative
+#'        beta-spending up to each interim stage.
+#' @param twoSidedPower For two-sided testing, if \code{twoSidedPower = TRUE} is specified
+#'        the sample size calculation is performed by considering both tails of the distribution.
+#'        Default is \code{FALSE}, i.e., it is assumed that one tail probability is equal to 0 or the power
+#'        should be directed to one part.
+#' @param tolerance The numerical tolerance, default is \code{1e-08}.
+#'
+#' @export
+#'
+deprecated_getDesignGroupSequential <- function(...,
+        kMax = NA_integer_,
+        alpha = NA_real_,
+        beta = NA_real_,
+        sided = 1, # rpact:::C_SIDED_DEFAULT
+        informationRates = NA_real_,
+        futilityBounds = NA_real_,
+        typeOfDesign = c("OF", "P", "WT", "PT", "HP", "WToptimum", "asP", "asOF", "asKD", "asHSD", "asUser", "noEarlyEfficacy"), # rpact:::C_DEFAULT_TYPE_OF_DESIGN,
+        deltaWT = NA_real_,
+        deltaPT1 = NA_real_,
+        deltaPT0 = NA_real_,
+        optimizationCriterion = c("ASNH1", "ASNIFH1", "ASNsum"), # rpact:::C_OPTIMIZATION_CRITERION_DEFAULT
+        gammaA = NA_real_,
+        typeBetaSpending = c("none", "bsP", "bsOF", "bsKD", "bsHSD", "bsUser"), # rpact:::C_TYPE_OF_DESIGN_BS_NONE
+        userAlphaSpending = NA_real_,
+        userBetaSpending = NA_real_,
+        gammaB = NA_real_,
+        bindingFutility = NA,
+        constantBoundsHP = 3, # rpact:::C_CONST_BOUND_HP_DEFAULT,
+        twoSidedPower = NA,
+        tolerance = 1e-08 # rpact:::C_DESIGN_TOLERANCE_DEFAULT
+        ) {
+    rpact:::.warnInCaseOfUnknownArguments(functionName = "getDesignGroupSequential", ...)
+
+    return(.getDesignGroupSequential(
+        designClass = rpact:::C_CLASS_NAME_TRIAL_DESIGN_GROUP_SEQUENTIAL,
+        kMax = kMax,
+        alpha = alpha,
+        beta = beta,
+        sided = sided,
+        informationRates = informationRates,
+        futilityBounds = futilityBounds,
+        typeOfDesign = typeOfDesign,
+        deltaWT = deltaWT,
+        deltaPT1 = deltaPT1,
+        deltaPT0 = deltaPT0,
+        optimizationCriterion = optimizationCriterion,
+        gammaA = gammaA,
+        typeBetaSpending = typeBetaSpending,
+        userAlphaSpending = userAlphaSpending,
+        userBetaSpending = userBetaSpending,
+        gammaB = gammaB,
+        bindingFutility = bindingFutility,
+        constantBoundsHP = constantBoundsHP,
+        twoSidedPower = twoSidedPower,
+        tolerance = tolerance,
+        userFunctionCallEnabled = TRUE
+    ))
+}
+
+.getFixedSampleSize <- function(alpha, beta, sided, twoSidedPower = rpact:::C_TWO_SIDED_POWER_DEFAULT) {
+    rpact:::.assertIsValidAlphaAndBeta(alpha = alpha, beta = beta)
+    rpact:::.assertIsValidSidedParameter(sided)
+
+    if (sided == 1) {
+        return((rpact:::.getOneMinusQNorm(alpha) + rpact:::.getOneMinusQNorm(beta))^2)
+    }
+    if (twoSidedPower) {
+        n <- rpact:::.getOneDimensionalRoot(
+            function(n) {
+                stats::pnorm(-rpact:::.getOneMinusQNorm(alpha / 2) - sqrt(n)) -
+                    stats::pnorm(rpact:::.getOneMinusQNorm(alpha / 2) - sqrt(n)) + beta
+            },
+            lower = 0,
+            upper = 2 * (rpact:::.getOneMinusQNorm(alpha / 2) + rpact:::.getOneMinusQNorm(beta))^2,
+            tolerance = 1e-08, callingFunctionInformation = ".getFixedSampleSize"
+        )
+    } else {
+        n <- (rpact:::.getOneMinusQNorm(alpha / 2) + rpact:::.getOneMinusQNorm(beta))^2
+    }
+    return(n)
+}
+
+#' @title
+#' Get Design Characteristics
+#'
+#' @description
+#' Calculates the characteristics of a design and returns it.
+#'
+#' @details
+#' Calculates the inflation factor (IF),
+#' the expected reduction in sample size under H1, under H0, and under a value in between H0 and H1.
+#' Furthermore, absolute information values are calculated
+#' under the prototype case testing H0: mu = 0 against H1: mu = 1.
+#'
+#' @return Returns a \code{\link{TrialDesignCharacteristics}} object.
+#' The following generics (R generic functions) are available for this result object:
+#' \itemize{
+#'   \item \code{\link[=names.FieldSet]{names}} to obtain the field names,
+#'   \item \code{\link[=print.FieldSet]{print}} to print the object,
+#'   \item \code{\link[=summary.ParameterSet]{summary}} to display a summary of the object,
+#'   \item \code{\link[=plot.ParameterSet]{plot}} to plot the object,
+#'   \item \code{\link[=as.data.frame.TrialDesignCharacteristics]{as.data.frame}} to coerce the object to a \code{\link[base]{data.frame}},
+#'   \item \code{\link[=as.matrix.FieldSet]{as.matrix}} to coerce the object to a \code{\link[base]{matrix}}.
+#' }
+#'
+#' @export
+#'
+deprecated_getDesignCharacteristics <- function(design) {
+    return(.getDesignCharacteristics(design = design, userFunctionCallEnabled = TRUE))
+}
+
+.getDesignCharacteristics <- function(..., design, userFunctionCallEnabled = FALSE) {
+    rpact:::.assertIsTrialDesignInverseNormalOrGroupSequential(design)
+    rpact:::.assertDesignParameterExists(design, "sided", rpact:::C_SIDED_DEFAULT)
+    rpact:::.assertIsValidSidedParameter(design$sided)
+
+    if (userFunctionCallEnabled) {
+        rpact:::.validateAlphaAndBeta(design = design)
+    }
+
+    design$informationRates <- rpact:::.getValidatedInformationRates(design, writeToDesign = FALSE)
+
+    if ((design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_PT || rpact:::.isBetaSpendingDesignType(design$typeBetaSpending)) && design$sided == 2 && design$kMax == 2) {
+        design$futilityBounds[is.na(design$futilityBounds)] <- 0
+    }
+
+    design$futilityBounds <- rpact:::.getValidatedFutilityBounds(design,
+        writeToDesign = FALSE, twoSidedWarningForDefaultValues = FALSE
+    )
+
+    designCharacteristics <- rpact:::TrialDesignCharacteristics(design = design)
+
+    designCharacteristics$rejectionProbabilities <- rep(NA_real_, design$kMax)
+    designCharacteristics$.setParameterType("rejectionProbabilities", rpact:::C_PARAM_NOT_APPLICABLE)
+
+    designCharacteristics$futilityProbabilities <- rep(NA_real_, design$kMax - 1)
+    designCharacteristics$.setParameterType("futilityProbabilities", rpact:::C_PARAM_NOT_APPLICABLE)
+
+    nFixed <- .getFixedSampleSize(
+        alpha = design$alpha, beta = design$beta,
+        sided = design$sided, twoSidedPower = design$twoSidedPower
+    )
+    designCharacteristics$nFixed <- nFixed
+    designCharacteristics$.setParameterType("nFixed", rpact:::C_PARAM_GENERATED)
+
+    if (design$kMax == 1) {
+        designCharacteristics$shift <- nFixed
+        designCharacteristics$.setParameterType("shift", rpact:::C_PARAM_GENERATED)
+
+        designCharacteristics$inflationFactor <- designCharacteristics$shift / nFixed
+        designCharacteristics$.setParameterType("inflationFactor", rpact:::C_PARAM_GENERATED)
+
+        designCharacteristics$power <- 1 - design$beta
+        designCharacteristics$.setParameterType("power", design$.getParameterType("power"))
+
+        designCharacteristics$.setParameterType("information", rpact:::C_PARAM_NOT_APPLICABLE)
+
+        designCharacteristics$.setParameterType("averageSampleNumber1", rpact:::C_PARAM_NOT_APPLICABLE)
+        designCharacteristics$.setParameterType("averageSampleNumber01", rpact:::C_PARAM_NOT_APPLICABLE)
+        designCharacteristics$.setParameterType("averageSampleNumber0", rpact:::C_PARAM_NOT_APPLICABLE)
+        designCharacteristics$.setParameterType(".probs", rpact:::C_PARAM_NOT_APPLICABLE)
+
+        return(designCharacteristics)
+    }
+
+    informationRates <- design$informationRates
+
+    if ((design$typeOfDesign == rpact:::C_TYPE_OF_DESIGN_PT ||
+            rpact:::.isBetaSpendingDesignType(design$typeBetaSpending)) && design$sided == 2) {
+        design$futilityBounds[is.na(design$futilityBounds)] <- 0
+
+        shift <- rpact:::.getOneDimensionalRoot(
+            function(shift) {
+                decisionMatrix <- matrix(c(
+                    -design$criticalValues - sqrt(shift * informationRates),
+                    c(-design$futilityBounds - sqrt(shift * informationRates[1:(design$kMax - 1)]), 0),
+                    c(design$futilityBounds - sqrt(shift * informationRates[1:(design$kMax - 1)]), 0),
+                    design$criticalValues - sqrt(shift * informationRates)
+                ), nrow = 4, byrow = TRUE)
+                probs <- .getGroupSequentialProbabilities(decisionMatrix, informationRates)
+                if (design$twoSidedPower) {
+                    return(sum(probs[5, ] - probs[4, ] + probs[1, ]) - 1 + design$beta)
+                } else {
+                    return(sum(probs[5, ] - probs[4, ]) - 1 + design$beta)
+                }
+            },
+            lower = 0, upper = 4 * (rpact:::.getOneMinusQNorm(design$alpha / design$sided) + rpact:::.getOneMinusQNorm(design$beta))^2,
+            tolerance = design$tolerance, callingFunctionInformation = ".getDesignCharacteristics"
+        )
+
+        decisionMatrix <- matrix(c(
+            -design$criticalValues - sqrt(shift * informationRates),
+            c(-design$futilityBounds - sqrt(shift * informationRates[1:(design$kMax - 1)]), 0),
+            c(design$futilityBounds - sqrt(shift * informationRates[1:(design$kMax - 1)]), 0),
+            design$criticalValues - sqrt(shift * informationRates)
+        ), nrow = 4, byrow = TRUE)
+        probs <- .getGroupSequentialProbabilities(decisionMatrix, informationRates)
+        designCharacteristics$shift <- shift
+        designCharacteristics$.probs <- probs
+        if (design$twoSidedPower) {
+            designCharacteristics$power <- cumsum(probs[5, ] - probs[4, ] + probs[1, ])
+            designCharacteristics$rejectionProbabilities <- probs[5, ] - probs[4, ] + probs[1, ]
+        } else {
+            designCharacteristics$power <- cumsum(probs[5, ] - probs[4, ])
+            designCharacteristics$rejectionProbabilities <- probs[5, ] - probs[4, ]
+        }
+        if (design$kMax > 1) {
+            designCharacteristics$futilityProbabilities <- probs[3, 1:(design$kMax - 1)] - probs[2, 1:(design$kMax - 1)]
+        }
+
+        designCharacteristics$information <- informationRates * shift
+        designCharacteristics$averageSampleNumber1 <- .getAverageSampleNumber(
+            design$kMax, design$informationRates, probs, shift, nFixed
+        )
+
+        decisionMatrix <- matrix(c(
+            -design$criticalValues,
+            c(-design$futilityBounds, 0),
+            c(design$futilityBounds, 0),
+            design$criticalValues
+        ), nrow = 4, byrow = TRUE)
+        probs0 <- .getGroupSequentialProbabilities(decisionMatrix, informationRates)
+        designCharacteristics$averageSampleNumber0 <- .getAverageSampleNumber(
+            design$kMax, design$informationRates, probs0, shift, nFixed
+        )
+
+        decisionMatrix <- matrix(c(
+            -design$criticalValues - sqrt(shift * informationRates) / 2,
+            c(-design$futilityBounds - sqrt(shift * informationRates[1:(design$kMax - 1)]) / 2, 0),
+            c(design$futilityBounds - sqrt(shift * informationRates[1:(design$kMax - 1)]) / 2, 0),
+            design$criticalValues - sqrt(shift * informationRates) / 2
+        ), nrow = 4, byrow = TRUE)
+        probs01 <- .getGroupSequentialProbabilities(decisionMatrix, informationRates)
+        designCharacteristics$averageSampleNumber01 <- .getAverageSampleNumber(
+            design$kMax, design$informationRates, probs01, shift, nFixed
+        )
+
+        design$futilityBounds[design$futilityBounds == 0] <- NA_real_
+    } else {
+        shift <- rpact:::.getOneDimensionalRoot(
+            function(shift) {
+                if (design$sided == 2) {
+                    decisionMatrix <- matrix(c(
+                        -design$criticalValues - sqrt(shift * informationRates),
+                        design$criticalValues - sqrt(shift * informationRates)
+                    ), nrow = 2, byrow = TRUE)
+                    probs <- .getGroupSequentialProbabilities(decisionMatrix, informationRates)
+                    if (design$twoSidedPower) {
+                        return(sum(probs[3, ] - probs[2, ] + probs[1, ]) - 1 + design$beta)
+                    } else {
+                        return(sum(probs[3, ] - probs[2, ]) - 1 + design$beta)
+                    }
+                } else {
+                    shiftedFutilityBounds <- design$futilityBounds - sqrt(shift * informationRates[1:(design$kMax - 1)])
+                    shiftedFutilityBounds[design$futilityBounds <= rpact:::C_FUTILITY_BOUNDS_DEFAULT] <-
+                        rpact:::C_FUTILITY_BOUNDS_DEFAULT
+                    decisionMatrix <- matrix(c(
+                        shiftedFutilityBounds, rpact:::C_FUTILITY_BOUNDS_DEFAULT,
+                        design$criticalValues - sqrt(shift * informationRates)
+                    ), nrow = 2, byrow = TRUE)
+                    probs <- .getGroupSequentialProbabilities(decisionMatrix, informationRates)
+                    return(sum(probs[3, ] - probs[2, ]) - 1 + design$beta)
+                }
+            },
+            lower = 0, upper = 4 * (rpact:::.getOneMinusQNorm(design$alpha / design$sided) + rpact:::.getOneMinusQNorm(design$beta))^2,
+            tolerance = design$tolerance, callingFunctionInformation = ".getDesignCharacteristics"
+        )
+
+        if (design$sided == 2) {
+            decisionMatrix <- matrix(c(
+                -design$criticalValues - sqrt(shift * informationRates),
+                design$criticalValues - sqrt(shift * informationRates)
+            ), nrow = 2, byrow = TRUE)
+        } else {
+            shiftedFutilityBounds <- design$futilityBounds - sqrt(shift * informationRates[1:(design$kMax - 1)])
+            shiftedFutilityBounds[design$futilityBounds <= rpact:::C_FUTILITY_BOUNDS_DEFAULT] <-
+                rpact:::C_FUTILITY_BOUNDS_DEFAULT
+            decisionMatrix <- matrix(c(
+                shiftedFutilityBounds, rpact:::C_FUTILITY_BOUNDS_DEFAULT,
+                design$criticalValues - sqrt(shift * informationRates)
+            ), nrow = 2, byrow = TRUE)
+        }
+        probs <- .getGroupSequentialProbabilities(decisionMatrix, informationRates)
+        designCharacteristics$shift <- shift
+        designCharacteristics$.probs <- probs
+        if (design$twoSidedPower) {
+            designCharacteristics$power <- cumsum(probs[3, ] - probs[2, ] + probs[1, ])
+            designCharacteristics$rejectionProbabilities <- probs[3, ] - probs[2, ] + probs[1, ]
+        } else {
+            designCharacteristics$power <- cumsum(probs[3, ] - probs[2, ])
+            designCharacteristics$rejectionProbabilities <- probs[3, ] - probs[2, ]
+        }
+        if (design$kMax > 1) {
+            if (design$sided == 2) {
+                designCharacteristics$futilityProbabilities <- rep(0, design$kMax - 1)
+            } else {
+                designCharacteristics$futilityProbabilities <- probs[1, 1:(design$kMax - 1)]
+            }
+        }
+        designCharacteristics$information <- informationRates * shift
+        designCharacteristics$averageSampleNumber1 <- .getAverageSampleNumber(
+            design$kMax,
+            design$informationRates, probs, shift, nFixed
+        )
+        if (design$sided == 2) {
+            decisionMatrix <- matrix(c(-design$criticalValues, design$criticalValues), nrow = 2, byrow = TRUE)
+        } else {
+            decisionMatrix <- matrix(c(
+                design$futilityBounds, rpact:::C_FUTILITY_BOUNDS_DEFAULT,
+                design$criticalValues
+            ), nrow = 2, byrow = TRUE)
+        }
+        probs0 <- .getGroupSequentialProbabilities(decisionMatrix, informationRates)
+        designCharacteristics$averageSampleNumber0 <- .getAverageSampleNumber(
+            design$kMax,
+            design$informationRates, probs0, shift, nFixed
+        )
+        if (design$sided == 2) {
+            decisionMatrix <- matrix(c(
+                -design$criticalValues - sqrt(shift * informationRates) / 2,
+                design$criticalValues - sqrt(shift * informationRates) / 2
+            ), nrow = 2, byrow = TRUE)
+        } else {
+            shiftedFutilityBounds <- design$futilityBounds - sqrt(shift * informationRates[1:(design$kMax - 1)]) / 2
+            shiftedFutilityBounds[design$futilityBounds <= rpact:::C_FUTILITY_BOUNDS_DEFAULT] <- rpact:::C_FUTILITY_BOUNDS_DEFAULT
+            decisionMatrix <- matrix(c(shiftedFutilityBounds, rpact:::C_FUTILITY_BOUNDS_DEFAULT, design$criticalValues -
+                sqrt(shift * informationRates) / 2), nrow = 2, byrow = TRUE)
+        }
+        probs01 <- .getGroupSequentialProbabilities(decisionMatrix, informationRates)
+        designCharacteristics$averageSampleNumber01 <- .getAverageSampleNumber(design$kMax, design$informationRates, probs01, shift, nFixed)
+    }
+
+    designCharacteristics$.setParameterType("shift", rpact:::C_PARAM_GENERATED)
+    designCharacteristics$.setParameterType("power", rpact:::C_PARAM_GENERATED)
+    designCharacteristics$.setParameterType(".probs", rpact:::C_PARAM_GENERATED)
+    designCharacteristics$.setParameterType("rejectionProbabilities", rpact:::C_PARAM_GENERATED)
+    designCharacteristics$.setParameterType("information", rpact:::C_PARAM_GENERATED)
+    designCharacteristics$.setParameterType("futilityProbabilities", rpact:::C_PARAM_GENERATED)
+    designCharacteristics$.setParameterType("averageSampleNumber1", rpact:::C_PARAM_GENERATED)
+    designCharacteristics$.setParameterType("averageSampleNumber0", rpact:::C_PARAM_GENERATED)
+    designCharacteristics$.setParameterType("averageSampleNumber01", rpact:::C_PARAM_GENERATED)
+
+    designCharacteristics$inflationFactor <- shift / nFixed
+    designCharacteristics$.setParameterType("inflationFactor", rpact:::C_PARAM_GENERATED)
+
+    if (is.na(designCharacteristics$inflationFactor) ||
+            (designCharacteristics$inflationFactor > 4) || (designCharacteristics$inflationFactor < 1 - 1e-08)) {
+        stop(rpact:::C_EXCEPTION_TYPE_RUNTIME_ISSUE, "Inflation factor cannot be calculated")
+    }
+
+    return(designCharacteristics)
+}
+
+.getAverageSampleNumber <- function(kMax, informationRates, probs, shift, nFixed) {
+    if (nrow(probs) == 3) {
+        return((shift - sum((probs[3, 1:(kMax - 1)] - probs[2, 1:(kMax - 1)] + probs[1, 1:(kMax - 1)]) *
+            (informationRates[kMax] - informationRates[1:(kMax - 1)]) * shift)) / nFixed)
+    } else {
+        return((shift - sum((probs[5, 1:(kMax - 1)] -
+            probs[4, 1:(kMax - 1)] + probs[3, 1:(kMax - 1)] - probs[2, 1:(kMax - 1)] + probs[1, 1:(kMax - 1)]) *
+            (informationRates[kMax] - informationRates[1:(kMax - 1)]) * shift)) / nFixed)
+    }
+}
+
