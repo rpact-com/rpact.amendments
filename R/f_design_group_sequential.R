@@ -21,7 +21,7 @@
 
 .getGroupSequentialProbabilities <- function(decisionMatrix, informationRates) {
     if (Sys.getenv("RPACT_ENGINE_CLASSIrpact:::C_R") %in% c("", "FALSE")) {
-        return(rpact:::getGroupSequentialProbabilitiesCpp(decisionMatrix, informationRates))
+        return(rpact:::.getGroupSequentialProbabilitiesCpp(decisionMatrix, informationRates))
     }
 
     rpact:::.assertAreValidInformationRates(informationRates)
