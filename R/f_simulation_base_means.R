@@ -645,7 +645,7 @@ deprecated_getSimulationMeans <- function(design = NULL, ...,
     rpact:::.assertIsSingleLogical(normalApproximation, "normalApproximation", naAllowed = FALSE)
     rpact:::.assertIsValidPlannedSubjectsOrEvents(design, plannedSubjects, parameterName = "plannedSubjects")
 	
-	simulationResults <- rpact:::SimulationResultsMeans(design, showStatistics = showStatistics)
+	simulationResults <- rpact:::SimulationResultsMeans$new(design, showStatistics = showStatistics)
 
     if (design$sided == 2) {
         stop(

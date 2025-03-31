@@ -918,7 +918,7 @@ deprecated_getSimulationRates <- function(design = NULL, ...,
         )
     }
 
-    simulationResults <- rpact:::SimulationResultsRates(design, showStatistics = showStatistics)
+    simulationResults <- rpact:::SimulationResultsRates$new(design, showStatistics = showStatistics)
 
     conditionalPower <- rpact:::.ignoreParameterIfNotUsed(
         "conditionalPower",

@@ -459,9 +459,9 @@
     }
 
     if (designClass == rpact:::C_CLASS_NAME_TRIAL_DESIGN_INVERSE_NORMAL) {
-        design <- rpact:::TrialDesignInverseNormal(kMax = kMax)
+        design <- rpact:::TrialDesignInverseNormal$new(kMax = kMax)
     } else if (designClass == rpact:::C_CLASS_NAME_TRIAL_DESIGN_GROUP_SEQUENTIAL) {
-        design <- rpact:::TrialDesignGroupSequential(kMax = kMax)
+        design <- rpact:::TrialDesignGroupSequential$new(kMax = kMax)
     } else {
         stop(
             rpact:::C_EXCEPTION_TYPE_ILLEGAL_ARGUMENT,
@@ -1447,69 +1447,6 @@
     invisible(design)
 }
 
-
-#'
-#' @title
-#' Get Design Inverse Normal
-#'
-#' @description
-#' Provides adjusted boundaries and defines a group sequential design for its use in
-#' the inverse normal combination test.
-#'
-#' @inheritParams deprecated_getDesignGroupSequential
-#'
-#' @export
-#'
-deprecated_getDesignInverseNormal <- function(...,
-        kMax = NA_integer_,
-        alpha = NA_real_,
-        beta = NA_real_,
-        sided = 1, # rpact:::C_SIDED_DEFAULT
-        informationRates = NA_real_,
-        futilityBounds = NA_real_,
-        typeOfDesign = c("OF", "P", "WT", "PT", "HP", "WToptimum", "asP", "asOF", "asKD", "asHSD", "asUser", "noEarlyEfficacy"), # rpact:::C_DEFAULT_TYPE_OF_DESIGN,
-        deltaWT = NA_real_,
-        deltaPT1 = NA_real_,
-        deltaPT0 = NA_real_,
-        optimizationCriterion = c("ASNH1", "ASNIFH1", "ASNsum"), # rpact:::C_OPTIMIZATION_CRITERION_DEFAULT
-        gammaA = NA_real_,
-        typeBetaSpending = c("none", "bsP", "bsOF", "bsKD", "bsHSD", "bsUser"), # rpact:::C_TYPE_OF_DESIGN_BS_NONE
-        userAlphaSpending = NA_real_,
-        userBetaSpending = NA_real_,
-        gammaB = NA_real_,
-        bindingFutility = NA,
-        constantBoundsHP = 3, # rpact:::C_CONST_BOUND_HP_DEFAULT,
-        twoSidedPower = NA,
-        tolerance = 1e-08 # rpact:::C_DESIGN_TOLERANCE_DEFAULT
-        ) {
-    rpact:::.warnInCaseOfUnknownArguments(functionName = "getDesignInverseNormal", ...)
-
-    return(.getDesignGroupSequential(
-        designClass = rpact:::C_CLASS_NAME_TRIAL_DESIGN_INVERSE_NORMAL,
-        kMax = kMax,
-        alpha = alpha,
-        beta = beta,
-        sided = sided,
-        informationRates = informationRates,
-        futilityBounds = futilityBounds,
-        typeOfDesign = typeOfDesign,
-        deltaWT = deltaWT,
-        deltaPT1 = deltaPT1,
-        deltaPT0 = deltaPT0,
-        optimizationCriterion = optimizationCriterion,
-        gammaA = gammaA,
-        typeBetaSpending = typeBetaSpending,
-        userAlphaSpending = userAlphaSpending,
-        userBetaSpending = userBetaSpending,
-        gammaB = gammaB,
-        bindingFutility = bindingFutility,
-        constantBoundsHP = constantBoundsHP,
-        twoSidedPower = twoSidedPower,
-        tolerance = tolerance,
-        userFunctionCallEnabled = TRUE
-    ))
-}
-
 .getDesignInverseNormal <- function(...,
         kMax = NA_integer_,
         alpha = NA_real_,
@@ -1787,90 +1724,6 @@ deprecated_getDesignInverseNormal <- function(...,
     return(design)
 }
 
-#'
-#' @title
-#' Get Design Group Sequential
-#'
-#' @description
-#' Provides adjusted boundaries and defines a group sequential design.
-#'
-#' @param futilityBounds The futility bounds, defined on the test statistic z scale
-#'        (numeric vector of length \code{kMax - 1}).
-#' @param deltaWT Delta for Wang & Tsiatis Delta class.
-#' @param deltaPT1 Delta1 for Pampallona & Tsiatis class rejecting H0 boundaries.
-#' @param deltaPT0 Delta0 for Pampallona & Tsiatis class rejecting H1 boundaries.
-#' @param constantBoundsHP The constant bounds up to stage \code{kMax - 1} for the
-#'        Haybittle & Peto design (default is \code{3}).
-#' @param optimizationCriterion Optimization criterion for optimum design within
-#'        Wang & Tsiatis class (\code{"ASNH1"}, \code{"ASNIFH1"},
-#'        \code{"ASNsum"}), default is \code{"ASNH1"}, see details.
-#' @param typeBetaSpending Type of beta spending. Type of of beta spending is one of the following:
-#'        O'Brien & Fleming type beta spending, Pocock type beta spending,
-#'        Kim & DeMets beta spending, Hwang, Shi & DeCani beta spending, user defined
-#'        beta spending (\code{"bsOF"}, \code{"bsP"}, \code{"bsKD"},
-#'        \code{"bsHSD"}, \code{"bsUser"}, default is \code{"none"}).
-#' @param gammaA Parameter for alpha spending function.
-#' @param gammaB Parameter for beta spending function.
-#' @param userBetaSpending The user defined beta spending. Vector of length \code{kMax} containing the cumulative
-#'        beta-spending up to each interim stage.
-#' @param twoSidedPower For two-sided testing, if \code{twoSidedPower = TRUE} is specified
-#'        the sample size calculation is performed by considering both tails of the distribution.
-#'        Default is \code{FALSE}, i.e., it is assumed that one tail probability is equal to 0 or the power
-#'        should be directed to one part.
-#' @param tolerance The numerical tolerance, default is \code{1e-08}.
-#'
-#' @export
-#'
-deprecated_getDesignGroupSequential <- function(...,
-        kMax = NA_integer_,
-        alpha = NA_real_,
-        beta = NA_real_,
-        sided = 1, # rpact:::C_SIDED_DEFAULT
-        informationRates = NA_real_,
-        futilityBounds = NA_real_,
-        typeOfDesign = c("OF", "P", "WT", "PT", "HP", "WToptimum", "asP", "asOF", "asKD", "asHSD", "asUser", "noEarlyEfficacy"), # rpact:::C_DEFAULT_TYPE_OF_DESIGN,
-        deltaWT = NA_real_,
-        deltaPT1 = NA_real_,
-        deltaPT0 = NA_real_,
-        optimizationCriterion = c("ASNH1", "ASNIFH1", "ASNsum"), # rpact:::C_OPTIMIZATION_CRITERION_DEFAULT
-        gammaA = NA_real_,
-        typeBetaSpending = c("none", "bsP", "bsOF", "bsKD", "bsHSD", "bsUser"), # rpact:::C_TYPE_OF_DESIGN_BS_NONE
-        userAlphaSpending = NA_real_,
-        userBetaSpending = NA_real_,
-        gammaB = NA_real_,
-        bindingFutility = NA,
-        constantBoundsHP = 3, # rpact:::C_CONST_BOUND_HP_DEFAULT,
-        twoSidedPower = NA,
-        tolerance = 1e-08 # rpact:::C_DESIGN_TOLERANCE_DEFAULT
-        ) {
-    rpact:::.warnInCaseOfUnknownArguments(functionName = "getDesignGroupSequential", ...)
-
-    return(.getDesignGroupSequential(
-        designClass = rpact:::C_CLASS_NAME_TRIAL_DESIGN_GROUP_SEQUENTIAL,
-        kMax = kMax,
-        alpha = alpha,
-        beta = beta,
-        sided = sided,
-        informationRates = informationRates,
-        futilityBounds = futilityBounds,
-        typeOfDesign = typeOfDesign,
-        deltaWT = deltaWT,
-        deltaPT1 = deltaPT1,
-        deltaPT0 = deltaPT0,
-        optimizationCriterion = optimizationCriterion,
-        gammaA = gammaA,
-        typeBetaSpending = typeBetaSpending,
-        userAlphaSpending = userAlphaSpending,
-        userBetaSpending = userBetaSpending,
-        gammaB = gammaB,
-        bindingFutility = bindingFutility,
-        constantBoundsHP = constantBoundsHP,
-        twoSidedPower = twoSidedPower,
-        tolerance = tolerance,
-        userFunctionCallEnabled = TRUE
-    ))
-}
-
 .getFixedSampleSize <- function(alpha, beta, sided, twoSidedPower = rpact:::C_TWO_SIDED_POWER_DEFAULT) {
     rpact:::.assertIsValidAlphaAndBeta(alpha = alpha, beta = beta)
     rpact:::.assertIsValidSidedParameter(sided)
@@ -1894,35 +1747,6 @@ deprecated_getDesignGroupSequential <- function(...,
     return(n)
 }
 
-#' @title
-#' Get Design Characteristics
-#'
-#' @description
-#' Calculates the characteristics of a design and returns it.
-#'
-#' @details
-#' Calculates the inflation factor (IF),
-#' the expected reduction in sample size under H1, under H0, and under a value in between H0 and H1.
-#' Furthermore, absolute information values are calculated
-#' under the prototype case testing H0: mu = 0 against H1: mu = 1.
-#'
-#' @return Returns a \code{\link{TrialDesignCharacteristics}} object.
-#' The following generics (R generic functions) are available for this result object:
-#' \itemize{
-#'   \item \code{\link[=names.FieldSet]{names}} to obtain the field names,
-#'   \item \code{\link[=print.FieldSet]{print}} to print the object,
-#'   \item \code{\link[=summary.ParameterSet]{summary}} to display a summary of the object,
-#'   \item \code{\link[=plot.ParameterSet]{plot}} to plot the object,
-#'   \item \code{\link[=as.data.frame.TrialDesignCharacteristics]{as.data.frame}} to coerce the object to a \code{\link[base]{data.frame}},
-#'   \item \code{\link[=as.matrix.FieldSet]{as.matrix}} to coerce the object to a \code{\link[base]{matrix}}.
-#' }
-#'
-#' @export
-#'
-deprecated_getDesignCharacteristics <- function(design) {
-    return(.getDesignCharacteristics(design = design, userFunctionCallEnabled = TRUE))
-}
-
 .getDesignCharacteristics <- function(..., design, userFunctionCallEnabled = FALSE) {
     rpact:::.assertIsTrialDesignInverseNormalOrGroupSequential(design)
     rpact:::.assertDesignParameterExists(design, "sided", rpact:::C_SIDED_DEFAULT)
@@ -1942,7 +1766,7 @@ deprecated_getDesignCharacteristics <- function(design) {
         writeToDesign = FALSE, twoSidedWarningForDefaultValues = FALSE
     )
 
-    designCharacteristics <- rpact:::TrialDesignCharacteristics(design = design)
+    designCharacteristics <- rpact:::TrialDesignCharacteristics$new(design = design)
 
     designCharacteristics$rejectionProbabilities <- rep(NA_real_, design$kMax)
     designCharacteristics$.setParameterType("rejectionProbabilities", rpact:::C_PARAM_NOT_APPLICABLE)
@@ -2176,3 +2000,179 @@ deprecated_getDesignCharacteristics <- function(design) {
     }
 }
 
+#' @title
+#' Get Design Characteristics
+#'
+#' @description
+#' Calculates the characteristics of a design and returns it.
+#'
+#' @details
+#' Calculates the inflation factor (IF),
+#' the expected reduction in sample size under H1, under H0, and under a value in between H0 and H1.
+#' Furthermore, absolute information values are calculated
+#' under the prototype case testing H0: mu = 0 against H1: mu = 1.
+#'
+#' @return Returns a \code{\link{TrialDesignCharacteristics}} object.
+#' The following generics (R generic functions) are available for this result object:
+#' \itemize{
+#'   \item \code{\link[=names.FieldSet]{names}} to obtain the field names,
+#'   \item \code{\link[=print.FieldSet]{print}} to print the object,
+#'   \item \code{\link[=summary.ParameterSet]{summary}} to display a summary of the object,
+#'   \item \code{\link[=plot.ParameterSet]{plot}} to plot the object,
+#'   \item \code{\link[=as.data.frame.TrialDesignCharacteristics]{as.data.frame}} to coerce the object to a \code{\link[base]{data.frame}},
+#'   \item \code{\link[=as.matrix.FieldSet]{as.matrix}} to coerce the object to a \code{\link[base]{matrix}}.
+#' }
+#'
+#' @export
+#'
+deprecated_getDesignCharacteristics <- function(design) {
+    return(.getDesignCharacteristics(design = design, userFunctionCallEnabled = TRUE))
+}
+
+#'
+#' @title
+#' Get Design Group Sequential
+#'
+#' @description
+#' Provides adjusted boundaries and defines a group sequential design.
+#'
+#' @param futilityBounds The futility bounds, defined on the test statistic z scale
+#'        (numeric vector of length \code{kMax - 1}).
+#' @param deltaWT Delta for Wang & Tsiatis Delta class.
+#' @param deltaPT1 Delta1 for Pampallona & Tsiatis class rejecting H0 boundaries.
+#' @param deltaPT0 Delta0 for Pampallona & Tsiatis class rejecting H1 boundaries.
+#' @param constantBoundsHP The constant bounds up to stage \code{kMax - 1} for the
+#'        Haybittle & Peto design (default is \code{3}).
+#' @param optimizationCriterion Optimization criterion for optimum design within
+#'        Wang & Tsiatis class (\code{"ASNH1"}, \code{"ASNIFH1"},
+#'        \code{"ASNsum"}), default is \code{"ASNH1"}, see details.
+#' @param typeBetaSpending Type of beta spending. Type of of beta spending is one of the following:
+#'        O'Brien & Fleming type beta spending, Pocock type beta spending,
+#'        Kim & DeMets beta spending, Hwang, Shi & DeCani beta spending, user defined
+#'        beta spending (\code{"bsOF"}, \code{"bsP"}, \code{"bsKD"},
+#'        \code{"bsHSD"}, \code{"bsUser"}, default is \code{"none"}).
+#' @param gammaA Parameter for alpha spending function.
+#' @param gammaB Parameter for beta spending function.
+#' @param userBetaSpending The user defined beta spending. Vector of length \code{kMax} containing the cumulative
+#'        beta-spending up to each interim stage.
+#' @param twoSidedPower For two-sided testing, if \code{twoSidedPower = TRUE} is specified
+#'        the sample size calculation is performed by considering both tails of the distribution.
+#'        Default is \code{FALSE}, i.e., it is assumed that one tail probability is equal to 0 or the power
+#'        should be directed to one part.
+#' @param tolerance The numerical tolerance, default is \code{1e-08}.
+#'
+#' @export
+#'
+deprecated_getDesignGroupSequential <- function(
+        ...,
+        kMax = NA_integer_,
+        alpha = NA_real_,
+        beta = NA_real_,
+        sided = 1, # rpact:::C_SIDED_DEFAULT
+        informationRates = NA_real_,
+        futilityBounds = NA_real_,
+        typeOfDesign = c("OF", "P", "WT", "PT", "HP", "WToptimum", "asP", "asOF", "asKD", "asHSD", "asUser", "noEarlyEfficacy"), # rpact:::C_DEFAULT_TYPE_OF_DESIGN,
+        deltaWT = NA_real_,
+        deltaPT1 = NA_real_,
+        deltaPT0 = NA_real_,
+        optimizationCriterion = c("ASNH1", "ASNIFH1", "ASNsum"), # rpact:::C_OPTIMIZATION_CRITERION_DEFAULT
+        gammaA = NA_real_,
+        typeBetaSpending = c("none", "bsP", "bsOF", "bsKD", "bsHSD", "bsUser"), # rpact:::C_TYPE_OF_DESIGN_BS_NONE
+        userAlphaSpending = NA_real_,
+        userBetaSpending = NA_real_,
+        gammaB = NA_real_,
+        bindingFutility = NA,
+        constantBoundsHP = 3, # rpact:::C_CONST_BOUND_HP_DEFAULT,
+        twoSidedPower = NA,
+        tolerance = 1e-08 # rpact:::C_DESIGN_TOLERANCE_DEFAULT
+        ) {
+    rpact:::.warnInCaseOfUnknownArguments(functionName = "getDesignGroupSequential", ...)
+
+    return(.getDesignGroupSequential(
+        designClass = rpact:::C_CLASS_NAME_TRIAL_DESIGN_GROUP_SEQUENTIAL,
+        kMax = kMax,
+        alpha = alpha,
+        beta = beta,
+        sided = sided,
+        informationRates = informationRates,
+        futilityBounds = futilityBounds,
+        typeOfDesign = typeOfDesign,
+        deltaWT = deltaWT,
+        deltaPT1 = deltaPT1,
+        deltaPT0 = deltaPT0,
+        optimizationCriterion = optimizationCriterion,
+        gammaA = gammaA,
+        typeBetaSpending = typeBetaSpending,
+        userAlphaSpending = userAlphaSpending,
+        userBetaSpending = userBetaSpending,
+        gammaB = gammaB,
+        bindingFutility = bindingFutility,
+        constantBoundsHP = constantBoundsHP,
+        twoSidedPower = twoSidedPower,
+        tolerance = tolerance,
+        userFunctionCallEnabled = TRUE
+    ))
+}
+
+#'
+#' @title
+#' Get Design Inverse Normal
+#'
+#' @description
+#' Provides adjusted boundaries and defines a group sequential design for its use in
+#' the inverse normal combination test.
+#'
+#' @inheritParams deprecated_getDesignGroupSequential
+#'
+#' @export
+#'
+deprecated_getDesignInverseNormal <- function(
+        ...,
+        kMax = NA_integer_,
+        alpha = NA_real_,
+        beta = NA_real_,
+        sided = 1, # rpact:::C_SIDED_DEFAULT
+        informationRates = NA_real_,
+        futilityBounds = NA_real_,
+        typeOfDesign = c("OF", "P", "WT", "PT", "HP", "WToptimum", "asP", "asOF", "asKD", "asHSD", "asUser", "noEarlyEfficacy"), # rpact:::C_DEFAULT_TYPE_OF_DESIGN,
+        deltaWT = NA_real_,
+        deltaPT1 = NA_real_,
+        deltaPT0 = NA_real_,
+        optimizationCriterion = c("ASNH1", "ASNIFH1", "ASNsum"), # rpact:::C_OPTIMIZATION_CRITERION_DEFAULT
+        gammaA = NA_real_,
+        typeBetaSpending = c("none", "bsP", "bsOF", "bsKD", "bsHSD", "bsUser"), # rpact:::C_TYPE_OF_DESIGN_BS_NONE
+        userAlphaSpending = NA_real_,
+        userBetaSpending = NA_real_,
+        gammaB = NA_real_,
+        bindingFutility = NA,
+        constantBoundsHP = 3, # rpact:::C_CONST_BOUND_HP_DEFAULT,
+        twoSidedPower = NA,
+        tolerance = 1e-08 # rpact:::C_DESIGN_TOLERANCE_DEFAULT
+        ) {
+    rpact:::.warnInCaseOfUnknownArguments(functionName = "getDesignInverseNormal", ...)
+
+    return(.getDesignGroupSequential(
+        designClass = rpact:::C_CLASS_NAME_TRIAL_DESIGN_INVERSE_NORMAL,
+        kMax = kMax,
+        alpha = alpha,
+        beta = beta,
+        sided = sided,
+        informationRates = informationRates,
+        futilityBounds = futilityBounds,
+        typeOfDesign = typeOfDesign,
+        deltaWT = deltaWT,
+        deltaPT1 = deltaPT1,
+        deltaPT0 = deltaPT0,
+        optimizationCriterion = optimizationCriterion,
+        gammaA = gammaA,
+        typeBetaSpending = typeBetaSpending,
+        userAlphaSpending = userAlphaSpending,
+        userBetaSpending = userBetaSpending,
+        gammaB = gammaB,
+        bindingFutility = bindingFutility,
+        constantBoundsHP = constantBoundsHP,
+        twoSidedPower = twoSidedPower,
+        tolerance = tolerance,
+        userFunctionCallEnabled = TRUE
+    ))
+}
